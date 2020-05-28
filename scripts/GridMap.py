@@ -39,6 +39,14 @@ class GridMapWorld():
             self.grid_map = np.array([row for row in reader]).T
         self.start_index = [-1, -1]
         self.goal_index = [-1, -1]
+        for index_x, grids in enumerate(self.grid_map):
+            for index_y, grid in enumerate(grids):
+                if grid == '2':
+                    #Start
+                    self.start_index = [index_x, index_y]
+                elif grid == '3':
+                    #Goal 
+                    self.goal_index = [index_x, index_y]
         
     def append(self,obj):
         self.objects.append(obj)
@@ -109,7 +117,6 @@ class GridMapWorld():
                 fontsize=10
             )
         )
-        print(time_str)
         
         for obj in self.objects:
             obj.draw(ax, elems)
