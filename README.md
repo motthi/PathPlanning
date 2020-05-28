@@ -10,3 +10,9 @@
 
 ## A*
 ![result](https://github.com/motthi/Path_Planning/blob/master/gif/astar_map2.gif)
+
+## DijkstraとA* の比較
+左：ダイクストラ法  
+右：A*
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/dijkstra_astar_map1.gif)  
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/dijkstra_astar_map2.gif)
