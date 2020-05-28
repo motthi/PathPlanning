@@ -7,3 +7,6 @@
 ## Dijkstra
 ![result](https://github.com/motthi/Path_Planning/blob/gif/gif/dijkstra.gif)
 ![result](https://github.com/motthi/Path_Planning/blob/gif/gif/dijkstra_cost.gif)
+
+## A*
+![result](https://github.com/motthi/Path_Planning/blob/gif/gif/astar.gif)
