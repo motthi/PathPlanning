@@ -6,10 +6,11 @@
 
 ## Dijkstra
 ![result](https://github.com/motthi/Path_Planning/blob/master/gif/dijkstra_map2.gif)
-![result](https://github.com/motthi/Path_Planning/blob/master/gif/dijkstra_cost.gif)
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/dijkstra_map2_cost.gif)
 
 ## A*
 ![result](https://github.com/motthi/Path_Planning/blob/master/gif/astar_map2.gif)
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/astar_map2_cost.gif)
 
 ## DijkstraとA* の比較
 左：ダイクストラ法  
