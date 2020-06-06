@@ -24,8 +24,9 @@ class GridMapWorld():
         grid_num=np.array([100, 100]),
         time_span=10,
         time_interval=0.1,
-        map_data="map2.csv",
-        debug=False
+        map_data="map1.csv",
+        debug=False,
+        isDynamic=False,
     ):
         self.objects = []  
         self.grid_step = grid_step
@@ -34,6 +35,7 @@ class GridMapWorld():
         self.time_interval = time_interval
         self.map_data = map_data
         self.debug = debug
+        self.isDynamic=isDynamic
         with open(self.map_data) as f:
             reader = csv.reader(f)
             self.grid_map = np.array([row for row in reader]).T
@@ -64,11 +66,15 @@ class GridMapWorld():
             for index_y, grid in enumerate(grids):
                 if grid == '0':
                     #Obstacle
+                    if(self.isDynamic):
+                        clr = "lightgray"
+                    else:
+                        clr = "black"
                     r = patches.Rectangle(
                         xy=(index_x*self.grid_step[0], index_y*self.grid_step[1]),
                         height=self.grid_step[0],
                         width=self.grid_step[1],
-                        color="black"
+                        color=clr
                     )
                     ax.add_patch(r)
                 elif grid == '2':
@@ -133,9 +139,9 @@ if __name__ == "__main__":
     grid_step = [0.1, 0.1]
     grid_num = [30, 30]
     
-    map_data = "csvmap/map2.csv"
+    map_data = "csvmap/map1.csv"
     
-    world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, debug=False)
+    world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, debug=False, isDynamic=False)
     
     world.draw()
 
