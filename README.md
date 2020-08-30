@@ -1,19 +1,30 @@
 # 経路計画アルゴリズム
 
-## Dynamic Window Approach
-![result](https://github.com/motthi/Path_Planning/blob/gif/gif/dwa_ver1.gif)
-![result](https://github.com/motthi/Path_Planning/blob/gif/gif/dwa_ver2.gif)
+## Local Path Planning
+### Dynamic Window Approach
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/dwa_ver1.gif)
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/dwa_ver2.gif)
 
-## Dijkstra
+
+## Global Path Planning
+### Grid Base Search
+#### Dijkstra
 ![result](https://github.com/motthi/Path_Planning/blob/master/gif/dijkstra_map2.gif)
-![result](https://github.com/motthi/Path_Planning/blob/master/gif/dijkstra_map2_cost.gif)
 
-## A*
+#### A*
 ![result](https://github.com/motthi/Path_Planning/blob/master/gif/astar_map2.gif)
-![result](https://github.com/motthi/Path_Planning/blob/master/gif/astar_map2_cost.gif)
 
-## DijkstraとA* の比較
+##### Dijkstra and A*
 左：ダイクストラ法  
 右：A*  
 ![result](https://github.com/motthi/Path_Planning/blob/master/gif/dijkstra_astar_map1.gif)  
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/dijkstra_astar_map2.gif)  
 ![result](https://github.com/motthi/Path_Planning/blob/master/gif/dijkstra_astar_map2.gif)
+
+#### Dynamic A* (D*)
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/dstar_map2.gif)
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/dstar_map3.gif)  
+
+##### マップ拡張によるコスト変化
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/dstar_map2_cost.gif)  
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/dstar_map3_cost.gif)
