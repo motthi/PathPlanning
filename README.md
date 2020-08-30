@@ -27,5 +27,5 @@ Right：A*
 ![result](https://github.com/motthi/Path_Planning/blob/master/gif/dstar_map3.gif)  
 
 ##### マップ拡張によるコスト変化
-![result](https://github.com/motthi/Path_Planning/blob/master/gif/dstar_map2_cost.gif)
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/dstar_map2_cost.gif)  
 ![result](https://github.com/motthi/Path_Planning/blob/master/gif/dstar_map3_cost.gif)
