@@ -12,7 +12,7 @@
 ![result](https://github.com/motthi/Path_Planning/blob/master/gif/dijkstra_map3.gif)
 
 #### A*
-![result](https://github.com/motthi/Path_Planning/blob/master/gif/astar_map2.gif)
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/astar_map2.gif)  
 ![result](https://github.com/motthi/Path_Planning/blob/master/gif/astar_map3.gif)
 
 ##### Dijkstra and A*
