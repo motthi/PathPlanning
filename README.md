@@ -14,10 +14,10 @@
 ![result](https://github.com/motthi/Path_Planning/blob/master/gif/astar_map2.gif)  
 
 #### Dynamic A* (D*)
-![result](https://github.com/motthi/Path_Planning/blob/master/gif/dstar_map2.gif)
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/dstar_map2_cost.gif)
 
 #### D* Lite
-![result](https://github.com/motthi/Path_Planning/blob/master/gif/dstarlite_map2.gif)
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/dstarlite_map2_cost.gif)
 
 
 
