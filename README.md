@@ -14,10 +14,14 @@
 ![result](https://github.com/motthi/Path_Planning/blob/master/gif/astar_map2.gif)  
 
 #### Dynamic A* (D*)
-![result](https://github.com/motthi/Path_Planning/blob/master/gif/dstar_map2_cost.gif)
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/dstar_map2_cost.gif)  
 
 #### D* Lite
-![result](https://github.com/motthi/Path_Planning/blob/master/gif/dstarlite_map2_cost.gif)
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/dstarlite_map2_cost.gif)  
+
+### Sampling Base Search
+#### RRT
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/rrt_map4.gif)  
 
 
 
