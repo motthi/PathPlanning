@@ -27,6 +27,7 @@ class GridMapWorld():
         map_data="map1.csv",
         debug=False,
         isDynamic=False,
+        timeShow="step"
     ):
         self.objects = []  
         self.grid_step = grid_step
@@ -35,7 +36,9 @@ class GridMapWorld():
         self.time_interval = time_interval
         self.map_data = map_data
         self.debug = debug
-        self.isDynamic=isDynamic
+        self.isDynamic = isDynamic
+        self.timeShow = timeShow
+        
         with open(self.map_data) as f:
             reader = csv.reader(f)
             self.grid_map = np.array([row for row in reader]).T
@@ -113,8 +116,14 @@ class GridMapWorld():
         
     def one_step(self, i, elems, ax):
         while elems: elems.pop().remove()
+        
+        if(self.timeShow == "time"):
+            time_str = "t = %.2f[s]" % (self.time_interval*i)
+        elif(self.timeShow == "step"):
+            time_str = "step = " + str(i)
+        else:
+            time_str = ""
             
-        time_str = "t = %.2f[s]" % (self.time_interval*i)
         elems.append(
             ax.text(
                 self.grid_step[0]*self.grid_num[0]*0.01,
