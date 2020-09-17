@@ -30,7 +30,7 @@
 #### Epsilon Greedy
 ![result](https://github.com/motthi/Path_Planning/blob/master/gif/epsilon-greedy_map2_5.gif)  
 
-#### SARSA Greedy
+#### SARSA
 ![result](https://github.com/motthi/Path_Planning/blob/master/gif/sarsa_map2_5.gif)  
 
 
