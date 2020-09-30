@@ -23,6 +23,12 @@
 #### RRT
 ![result](https://github.com/motthi/Path_Planning/blob/master/gif/rrt_map4.gif)  
 
+#### RRT*
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/rrtstar_map4.gif)  
+
+#### Informed RRT*
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/informedrrtstar_map4.gif)  
+
 ### Learning Base Search
 #### Dynamic Programming
 ![result](https://github.com/motthi/Path_Planning/blob/master/gif/dynamicProgramming_map2.gif)  
