@@ -34,7 +34,7 @@
 ![result](https://github.com/motthi/Path_Planning/blob/master/gif/dynamicProgramming_map2.gif)  
 
 #### Q Learning
-![result](https://github.com/motthi/Path_Planning/blob/master/gif/qlearnin_path_map1.gif)  
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/qlearning_path_map1.gif)  
 
 #### SARSA
 ![result](https://github.com/motthi/Path_Planning/blob/master/gif/sarsa_path_map1.gif)  
