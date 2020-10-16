@@ -38,6 +38,7 @@ class GridMapWorld():
         self.debug = debug
         self.isDynamic = isDynamic
         self.timeShow = timeShow
+        self.step = 0
         
         with open(self.map_data) as f:
             reader = csv.reader(f)
@@ -135,7 +136,12 @@ class GridMapWorld():
         
         for obj in self.objects:
             obj.draw(ax, elems)
-            if hasattr(obj, "one_step"): obj.one_step(self.time_interval)        
+            if hasattr(obj, "one_step"): obj.one_step(self.time_interval)
+                
+        #アニメーション保存時にステップ数を表示したい
+        if(not(self.debug)):  #デバッグ時は表示しないようにする
+            self.step += 1
+            print(self.step)
 
 
 # In[3]:
@@ -153,6 +159,7 @@ if __name__ == "__main__":
     world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, debug=False, isDynamic=False)
     
     world.draw()
+    #world.ani.save('input.gif', writer='pillow', fps=60)    #アニメーション保存
 
 
 # In[ ]:

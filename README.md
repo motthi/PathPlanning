@@ -33,11 +33,11 @@
 #### Dynamic Programming
 ![result](https://github.com/motthi/Path_Planning/blob/master/gif/dynamicProgramming_map2.gif)  
 
-#### Epsilon Greedy
-![result](https://github.com/motthi/Path_Planning/blob/master/gif/epsilon-greedy_map2_5.gif)  
+#### Q Learning
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/qlearnin_path_map1.gif)  
 
 #### SARSA
-![result](https://github.com/motthi/Path_Planning/blob/master/gif/sarsa_map2_5.gif)  
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/sarsa_path_map1.gif)  
 
 
 
