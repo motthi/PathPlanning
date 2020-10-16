@@ -6,8 +6,7 @@
 
 import sys
 sys.path.append("../scripts/")
-from GridMap import *
-from RRT import *
+from rrt import *
 from matplotlib.animation import PillowWriter    #アニメーション保存用
 import numpy as np
 import math
@@ -15,23 +14,33 @@ import random
 import copy
 
 
-# In[33]:
+# In[2]:
 
 
 class RRTstar(RRT):
-    def __init__(self, grid_map_world, ratioPointGoal=0.9, R=3):
-        super(RRTstar, self).__init__(grid_map_world, ratioPointGoal=0.9)
+    def __init__(self, grid_map_world, ratioPointGoal=0.9, R=3, drawVertex=False, drawReconnectAreaflag=False):
+        super(RRTstar, self).__init__(grid_map_world, ratioPointGoal=0.9, drawVertex=drawVertex)
         self.marker_size = 6
         self.R = R
         self.epsilon =0.1*math.sqrt(self.world.grid_step[0]**2+self.world.grid_step[1]**2)
         self.start_cordinate = [(self.world.start_index[0]+1/2)*self.world.grid_step[0], (self.world.start_index[1]+1/2)*self.world.grid_step[1]]
         self.goal_cordinate = [(self.world.goal_index[0]+1/2)*self.world.grid_step[0], (self.world.goal_index[1]+1/2)*self.world.grid_step[1]]
+        self.drawReconnectAreaflag = drawReconnectAreaflag
     
     def draw(self, ax, elems):
-        print(len(self.id))
+        xs, xn, xp = self.RRTstar()
+        
+        if(self.drawReconnectAreaflag):
+            self.drawReconnectArea(ax, elems, xn)
+        self.drawEdge(ax, elems)    #全エッジを描画
+        if(self.drawVertexflag):
+            self.drawVertex(ax, elems)    #全頂点を描画
+        self.drawSamplingPoint(ax, elems, xs)    #サンプリング点を描画
+        self.drawPath(ax, elems)    #得られた経路の描画
+        
+    def RRTstar(self):
         if(self.isStart):
             x, y = self.start_cordinate
-            #ax.plot(x, y, marker='.', markersize=self.marker_size, color="blue")
             self.vertex.append([x, y, 0.0])
             self.parent.append(0)
             self.isStart = False
@@ -83,61 +92,16 @@ class RRTstar(RRT):
         #エッジの変更
         for neigbor in self.getNeigborVertex([xn, yn]):
             if(neigbor[2] > cost_new + math.sqrt((xn-neigbor[0])**2 + (yn-neigbor[1])**2)):
-                isCollision, _, _ = self.collisionFree([xn, yn], neigbor, type2=False)
+                isCollision, _, _ = self.collisionFree(neigbor, [xn, yn], type2=False)
                 if(isCollision == 0 or isCollision == 2):
                     continue
                 parent_vertex = self.parent[self.get_id([neigbor[0], neigbor[1]])]
                 self.edge.remove([neigbor[0], neigbor[1], parent_vertex[0], parent_vertex[1]])
                 self.edge.append([neigbor[0], neigbor[1], xn, yn])
                 self.parent[self.get_id([neigbor[0], neigbor[1]])] = [xn, yn]
-                self.changeChildCost(neigbor)
+                self.changeChildCost(neigbor)  
         
-        #頂点とエッジを描画
-        elems += ax.plot(xp, yp, marker='.', color="red")
-        #elems += ax.plot(xn, yn, marker='.', color="black", markersize=7)
-        #elems += ax.plot([xp_n, xn], [yp_n, yn], color="blue")
-        #elems.append(ax.add_patch(circle = patches.Circle(xy=(xn, yn),radius=self.R * math.pow(math.log(len(self.vertex))/len(self.vertex), 1/2.0),fc='g', ec='g',alpha=0.5)))
-        for edge in self.edge:
-            x1, y1, x2, y2 = edge
-            elems += ax.plot([x1, x2], [y1, y2], color="cyan", alpha=0.5)
-        c = "blue"
-
-        cost_adj1, cost_adj2 = 100, 0
-        c_num = int(cost_adj1 * (cost_new - cost_adj2)) #Black→Blue
-        #print(cost_new, c_num)
-        if(c_num > 0xff): #Blue → Cyan
-            c_num = (c_num-0xff)*256 + 0xff
-            if(c_num > 0xffff): #Cyan → Green
-                c_num = 0xffff - int((c_num-0x100ff)*1/256)
-                if(c_num < 0xff00): #Green →Yellow
-                    c_num = (0xff00-c_num)*65536+0xff00
-                    if(c_num > 0xffff00): #Yellow → Red
-                        c_num = 0xffff00 - int((c_num-0xffff00)*0.5/65536)*256
-        fill = True
-        alpha = 0.5
-        c = '#' + format(int(c_num), 'x').zfill(6)
-        #ax.plot(xn, yn, marker='.', markersize=self.marker_size, color=c, alpha=0.5)
-        
-        #経路の描画
-        if(self.isFinish):
-            #ゴールからスタート
-            id = self.get_id(self.goal_cordinate)
-            distance = 0
-            while(id != 0):    #スタート（id=0）になるまで繰り返す
-                x1, y1 = self.id[id]
-                x2, y2 = self.parent[id]
-                id = self.get_id([x2, y2])
-                elems += ax.plot([x1, x2], [y1, y2], color="red")
-                distance += math.sqrt((x1-x2)**2 + (y1-y2)**2)
-            dis_str ="Distance = %.2f" % (distance)
-            elems.append(
-                ax.text(
-                    self.world.grid_step[0]*self.world.grid_num[0]*0.6,
-                    self.world.grid_step[1]*self.world.grid_num[1]*1.02,
-                    dis_str,
-                    fontsize=10
-                )
-            )
+        return [xp, yp], [xn, yn], [xp_n, yp_n]    #サンプリング点，新しい点，ペアレント点を返す
     
     #最も近い頂点を探し，2つの頂点の座標とコストを返す
     def getNearestVertex(self, xNew, candidate):
@@ -169,7 +133,6 @@ class RRTstar(RRT):
         else:
             return xNew[0], xNew[1], xNearest[0], xNearest[1], cost_n, nearest_id
     
-    
     #近傍にあるすべての頂点を返す
     def getNeigborVertex(self, x):
         N = len(self.vertex)
@@ -197,9 +160,41 @@ class RRTstar(RRT):
             if(self.parent[child_id] == parent_id):
                 children.append(self.vertex[child_id])
         return children
+    
+    def drawReconnectArea(self, ax, elems, x):
+        elems.append(
+            ax.add_patch(
+                patches.Circle(
+                    xy=(x[0], x[1]),
+                    radius=self.R * math.pow(math.log(len(self.vertex))/len(self.vertex), 1/2.0),
+                    fc='g',
+                    ec='k',
+                    alpha=1.0
+                )
+            )
+        )
+    
+    def drawVertex(self, ax, elems):
+        for x in self.vertex:
+            c = "blue"
+            cost_adj1, cost_adj2 = 100, 0
+            c_num = int(cost_adj1 * (x[2] - cost_adj2)) #Black→Blue
+            #print(cost_new, c_num)
+            if(c_num > 0xff): #Blue → Cyan
+                c_num = (c_num-0xff)*256 + 0xff
+                if(c_num > 0xffff): #Cyan → Green
+                    c_num = 0xffff - int((c_num-0x100ff)*1/256)
+                    if(c_num < 0xff00): #Green →Yellow
+                        c_num = (0xff00-c_num)*65536+0xff00
+                        if(c_num > 0xffff00): #Yellow → Red
+                            c_num = 0xffff00 - int((c_num-0xffff00)*0.5/65536)*256
+            fill = True
+            alpha = 0.5
+            c = '#' + format(int(c_num), 'x').zfill(6)
+            elems += ax.plot(x[0], x[1], marker='.', markersize=self.marker_size, color=c)
 
 
-# In[34]:
+# In[3]:
 
 
 if __name__ == "__main__":
@@ -209,13 +204,13 @@ if __name__ == "__main__":
     grid_step = np.array([0.1, 0.1])
     grid_num = np.array([30, 30])
     
-    map_data = "../csvmap/map2.csv"
+    map_data = "../csvmap/map4.csv"
     
     world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, debug=False)
-    world.append(RRTstar(world, R=7, ratioPointGoal=0.95))
+    world.append(RRTstar(world, R=7.0, ratioPointGoal=0.95))
     
     world.draw()
-    #world.ani.save('input.gif', writer='pillow', fps=100)    #アニメーション保存
+    #world.ani.save('input_informed.gif', writer='pillow', fps=100)    #アニメーション保存
 
 
 # In[ ]:

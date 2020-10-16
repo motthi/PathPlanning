@@ -6,7 +6,7 @@
 
 import sys
 sys.path.append("../scripts/")
-from GridMap import *
+from gridmap import *
 from matplotlib.animation import PillowWriter    #アニメーション保存用
 import math
 import random
@@ -17,7 +17,7 @@ import copy
 
 
 class RRT():
-    def __init__(self, grid_map_world, ratioPointGoal=0.9):    
+    def __init__(self, grid_map_world, ratioPointGoal=0.9, drawVertex=False):    
         self.world = grid_map_world
         self.grid_map = grid_map_world.grid_map
         self.vertex = []    #[x, y, cost]
@@ -29,20 +29,31 @@ class RRT():
         self.isFinish = False
         self.isPathDraw = False
         self.ratePointGoal = ratioPointGoal
-        self.marker_size = 6
+        self.marker_size = 4
         self.start_cordinate = [(self.world.start_index[0]+1/2)*self.world.grid_step[0], (self.world.start_index[1]+1/2)*self.world.grid_step[1]]
         self.goal_cordinate = [(self.world.goal_index[0]+1/2)*self.world.grid_step[0], (self.world.goal_index[1]+1/2)*self.world.grid_step[1]]
+        self.drawVertexflag = drawVertex
     
     def draw(self, ax, elems):
-        print(len(self.id))
+        xs, xn, xp = self.RRT()
+        
+        self.drawEdge(ax, elems)    #全エッジを描画
+        if(self.drawVertexflag):
+            self.drawVertex(ax, elems)    #全頂点を描画
+        if(not(self.isFinish)):
+            self.drawSamplingPoint(ax, elems, xs)    #サンプリング点を描画
+            self.drawExtendedEdge(ax, elems, xn, xp)    #拡張したエッジを描画
+        self.drawPath(ax, elems)    #得られた経路の描画
+    
+    def RRT(self):
+        if(self.isFinish):
+            return None, None, None       
         if(self.isStart):
             x, y = self.start_cordinate
-            #ax.plot(x, y, marker='.', markersize=self.marker_size, color="blue")
             self.vertex.append([x, y, 0.0])
             self.parent.append(0)
             self.isStart = False
-            self.id.append([x, y])
-        
+            self.id.append([x, y])   
         xn, yn = None, None
         xp, yp = None, None
         xp_n, yp_n = None, None
@@ -52,8 +63,7 @@ class RRT():
         while(isFindVertex == False):    #結べる点が得られるまで繰り返す
             #サンプリング
             if(random.random() > self.ratePointGoal and not(self.isFinish)):
-                #ある確率でゴールを選択する
-                xp, yp = self.goal_cordinate
+                xp, yp = self.goal_cordinate    #ある確率でゴールを選択する
             else:
                 r1 = random.random()
                 r2 = random.random()
@@ -61,9 +71,10 @@ class RRT():
                 yp = self.world.grid_num[1]*self.world.grid_step[1]*r2
                 xp, yp = self.returnGoalGrid([xp, yp])
             
+            #新しい点を探し，衝突確認を行う
             candidate = copy.copy(self.vertex)
             while(1):
-                xn, yn, xp_n, yp_n, cost_n, nearest_id = self.getNearestVertex([xp, yp], candidate, ax, elems)    #[xp, yp]に最も近い頂点を探索
+                xn, yn, xp_n, yp_n, cost_n, nearest_id = self.getNearestVertex([xp, yp], candidate)    #[xp, yp]に最も近い頂点を探索
                 if(self.isGoal([xn, yn])):
                     [xn, yn] = self.goal_cordinate
                     isFindVertex = True
@@ -84,38 +95,10 @@ class RRT():
         self.edge.append([xn, yn, xp_n, yp_n])
         self.parent.append([xp_n, yp_n])
         self.id.append([xn, yn])
-        
-        #頂点とエッジを描画
-        elems += ax.plot(xp, yp, marker='.', color="red")
-        elems += ax.plot([xp_n, xn], [yp_n, yn], color="blue")
-        for edge in self.edge:
-            x1, y1, x2, y2 = edge
-            elems += ax.plot([x1, x2], [y1, y2], color="cyan", alpha=0.5)
-        #ax.plot(xn, yn, marker='.', markersize=self.marker_size, color="Blue", alpha=0.5)
-        
-        #経路の描画
-        if(self.isFinish):
-            #ゴールからスタート
-            id = self.get_id(self.goal_cordinate)
-            distance = 0
-            while(id != 0):    #スタート（id=0）になるまで繰り返す
-                x1, y1 = self.id[id]
-                x2, y2 = self.parent[id]
-                id = self.get_id([x2, y2])
-                elems += ax.plot([x1, x2], [y1, y2], color="red")
-                distance += math.sqrt((x1-x2)**2 + (y1-y2)**2)
-            dis_str ="Distance = %.2f" % (distance)
-            elems.append(
-                ax.text(
-                    self.world.grid_step[0]*self.world.grid_num[0]*0.6,
-                    self.world.grid_step[1]*self.world.grid_num[1]*1.02,
-                    dis_str,
-                    fontsize=10
-                )
-            )
-        
+        return [xp, yp], [xn, yn], [xp_n, yp_n]    #サンプリング点，新しい点，ペアレント点を返す
+    
     #最も近い頂点を探し，2つの頂点の座標とコストを返す
-    def getNearestVertex(self, xNew, candidate, ax, elems):
+    def getNearestVertex(self, xNew, candidate):
         dis = float('inf')
         dis_collision = float('inf')
         xNearest = []
@@ -164,7 +147,7 @@ class RRT():
             x_next = [x_next[0]+self.world.grid_step[0]*0.01*dx/dr, x_next[1]+self.world.grid_step[0]*0.01*dy/dr]
             if(self.isObstacle(x_next)):
                 return [0, x1[0], x1[1]]    #障害物に挟まれている場合
-            if(self.isGoal(x_next) and not(self.isGoal(x1)) and not(self.isGoal(x2))):
+            if((self.isGoal(x_next) and not(self.isGoal(x1)) and not(self.isGoal(x2))) and type2):
                 return [1, self.goal_cordinate[0], self.goal_cordinate[1]]
             if(type2 and math.sqrt((x_next[0]-x1[0])**2+(x_next[1]-x1[1])**2) > 2*math.sqrt(self.world.grid_step[0]**2+self.world.grid_step[1]**2)):
                 return [2, x_next[0], x_next[1]]    #障害物に挟まれていないが，一定距離で制限しその点を返す
@@ -200,9 +183,46 @@ class RRT():
             return [(self.world.goal_index[0]+1/2)*self.world.grid_step[0], (self.world.goal_index[1]+1/2)*self.world.grid_step[1]]
         else:
             return x 
-        
+    
+    #id取得
     def get_id(self, x):
         return self.id.index(x)
+    
+    def drawVertex(self, ax, elems):
+        for x in self.vertex:
+            elems += ax.plot(x[0], x[1], marker='.', markersize=self.marker_size, color="Blue")
+    
+    def drawEdge(self, ax, elems):
+        for edge in self.edge:
+            x1, y1, x2, y2 = edge
+            elems += ax.plot([x1, x2], [y1, y2], color="cyan", alpha=1.0)
+            
+    def drawExtendedEdge(self, ax, elems, x1, x2):
+        elems += ax.plot([x1[0], x2[0]], [x1[1], x2[1]], color="blue", alpha=0.5)        
+    
+    def drawSamplingPoint(self, ax, elems, x):
+        elems += ax.plot(x[0], x[1], marker='.', color="red")
+    
+    def drawPath(self, ax, elems):
+        if(self.isFinish):
+            #ゴールからスタート
+            id = self.get_id(self.goal_cordinate)
+            distance = 0
+            while(id != 0):    #スタート（id=0）になるまで繰り返す
+                x1, y1 = self.id[id]
+                x2, y2 = self.parent[id]
+                id = self.get_id([x2, y2])
+                elems += ax.plot([x1, x2], [y1, y2], color="red")
+                distance += math.sqrt((x1-x2)**2 + (y1-y2)**2)
+            dis_str ="Distance = %.4f" % (distance)
+            elems.append(
+                ax.text(
+                    self.world.grid_step[0]*self.world.grid_num[0]*0.6,
+                    self.world.grid_step[1]*self.world.grid_num[1]*1.02,
+                    dis_str,
+                    fontsize=10
+                )
+            )
 
 
 # In[3]:
