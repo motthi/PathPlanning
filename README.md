@@ -57,4 +57,9 @@
 
 #### SARSA
 
-![result](https://github.com/motthi/Path_Planning/blob/master/gif/sarsa_path_map1.gif)
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/sarsa_path_map1.gif)  
+
+#### Actor Critic
+
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/actor_critic_map1.gif)
+
