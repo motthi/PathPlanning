@@ -65,4 +65,4 @@
 
 
 #### REINFORCE
-![result](https://github.com/motthi/Path_Planning/blob/master/gif/reiforce_map1.gif)
+![result](https://github.com/motthi/Path_Planning/blob/master/gif/reinforce_map1.gif)
