@@ -63,3 +63,6 @@
 
 ![result](https://github.com/motthi/Path_Planning/blob/master/gif/actor_critic_map1.gif)
 
+
+#### REINFORCE
+(https://github.com/motthi/Path_Planning/blob/master/gif/reiforce_map1.gif)
