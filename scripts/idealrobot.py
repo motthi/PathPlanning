@@ -6,7 +6,8 @@
 
 import sys
 sys.path.append("scripts/")
-from Environment import*
+import numpy as np
+from environment import*
 
 
 # In[2]:
@@ -22,15 +23,10 @@ class IdealRobot:
         self.sensor = sensor
     
     def draw(self, ax, elems):
-        x, y, theta = self.pose
-        xn = x + self.r * math.cos(theta) 
-        yn = y + self.r * math.sin(theta) 
-        elems += ax.plot([x,xn], [y,yn], color=self.color)
-        c = patches.Circle(xy=(x, y), radius=self.r, fill=False, color=self.color) 
-        elems.append(ax.add_patch(c))
-        
+        self.drawRobot(self.pose, ax, elems)
         self.poses.append(self.pose)
-        elems += ax.plot([e[0] for e in self.poses], [e[1] for e in self.poses], linewidth=0.5, color="black")
+        self.drawTakenPath(self.poses, ax, elems)
+        
         if self.sensor:
             self.sensor.draw(ax, elems, self.poses[-2])
         if self.agent and hasattr(self.agent, "draw"):
@@ -39,15 +35,32 @@ class IdealRobot:
     def state_transition(self, nu, omega, time, pose):
         t0 = pose[2]
         if math.fabs(omega) < 1e-10:
-            return pose + np.array( [nu*math.cos(t0), nu*math.sin(t0), omega ] ) * time
+            return pose + np.array( [nu*np.cos(t0), nu*np.sin(t0), omega ] ) * time
         else:
-            return pose + np.array( [nu/omega*(math.sin(t0 + omega*time) - math.sin(t0)), nu/omega*(-math.cos(t0 + omega*time) + math.cos(t0)), omega*time ] )
+            return pose + np.array( [nu/omega*(np.sin(t0 + omega*time) - np.sin(t0)), nu/omega*(-np.cos(t0 + omega*time) + np.cos(t0)), omega*time ] )
 
     def one_step(self, time_interval):
         if not self.agent: return
         obs, pos = self.sensor.data(self.pose) if self.sensor else None
         nu, omega = self.agent.decision(obs, pos)
         self.pose = self.state_transition(nu, omega, time_interval, self.pose)
+        
+    def drawRobot(self, pose, ax, elems=None):
+        x, y, theta = pose
+        xn = x + self.r * np.cos(theta) 
+        yn = y + self.r * np.sin(theta) 
+        elems += ax.plot([x,xn], [y,yn], color=self.color)
+        c = patches.Circle(xy=(x, y), radius=self.r, fill=False, color=self.color) 
+        if elems is None:
+            ax.add_pathch(c)
+        else:
+            elems.append(ax.add_patch(c))
+    
+    def drawTakenPath(self, poses, ax, elems=None):
+        if elems is None:
+            ax.plot([e[0] for e in self.poses], [e[1] for e in self.poses], linewidth=0.5, color="black")
+        else:
+            elems += ax.plot([e[0] for e in self.poses], [e[1] for e in self.poses], linewidth=0.5, color="black")
 
 
 # In[3]:
