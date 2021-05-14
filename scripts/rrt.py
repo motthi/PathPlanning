@@ -10,7 +10,6 @@ from gridmap import *
 from matplotlib.animation import PillowWriter    #アニメーション保存用
 import math
 import random
-import copy
 
 
 # In[2]:

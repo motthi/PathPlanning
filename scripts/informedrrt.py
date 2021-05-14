@@ -9,12 +9,10 @@ sys.path.append("../scripts/")
 from rrtstar import *
 from matplotlib.animation import PillowWriter    #アニメーション保存用
 import matplotlib.patches as patches
-import math
 import random
-import copy
 
 
-# In[4]:
+# In[5]:
 
 
 def rotation_matrix(t):
@@ -46,7 +44,7 @@ class InformedRRTstar(RRTstar):
         self.drawSamplingPoint(ax, elems, xs)    #サンプリング点を描画
         if(self.isFinish):
             self.drawEllipse(ax, elems)
-          
+    
     def InformedRRTstar(self):
         if(self.isStart):
             x, y = self.start_cordinate
@@ -55,9 +53,7 @@ class InformedRRTstar(RRTstar):
             self.isStart = False
             self.id = np.vstack([self.id, [x, y]])
         
-        xn, yn = None, None
-        xp, yp = None, None
-        xp_n, yp_n = None, None
+        xn, xp, xp_n = None, None, None
         cost_n = None
         nearest_id = None
         isFindVertex = False
@@ -127,7 +123,7 @@ class InformedRRTstar(RRTstar):
             ec='black',
             fill=False
         )
-        elems.append(ax.add_patch(e))  
+        elems.append(ax.add_patch(e))
             
     def drawPath(self, ax, elems):
         if(self.isFinish): #ゴールからスタート
@@ -154,7 +150,7 @@ class InformedRRTstar(RRTstar):
             )
 
 
-# In[6]:
+# In[ ]:
 
 
 if __name__ == "__main__":
@@ -166,7 +162,7 @@ if __name__ == "__main__":
     
     map_data = "../csvmap/map4.csv"
     
-    world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, debug=False)
+    world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, debug=True)
     world.append(InformedRRTstar(world, R=5, ratioPointGoal=0.0))
     
     world.draw()

@@ -8,7 +8,6 @@ import matplotlib
 matplotlib.use('nbagg')
 import matplotlib.animation as anm
 import matplotlib.pyplot as plt
-import math
 import matplotlib.patches as patches
 import numpy as np
 import csv

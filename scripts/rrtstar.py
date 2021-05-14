@@ -11,7 +11,6 @@ from matplotlib.animation import PillowWriter    #アニメーション保存用
 import numpy as np
 import math
 import random
-import copy
 
 
 # In[2]:
@@ -26,7 +25,7 @@ class RRTstar(RRT):
         self.drawReconnectAreaflag = drawReconnectAreaflag
     
     def draw(self, ax, elems):
-        xs, xn, xp = self.RRTstar()
+        xs, xn, _ = self.RRTstar()
         
         if(self.drawReconnectAreaflag):
             self.drawReconnectArea(ax, elems, xn)
@@ -44,7 +43,7 @@ class RRTstar(RRT):
             self.isStart = False
             self.id = np.vstack([self.id, [x, y]])
         
-        xn, xp, yp_n = None, None, None
+        xn, xp, xp_n = None, None, None
         cost_n = None
         nearest_id = None
         isFindVertex = False
@@ -104,10 +103,8 @@ class RRTstar(RRT):
         dis = float('inf')
         dis_collision = float('inf')
         xNearest = []
-        xNearest_collision = []
         cost_n = 0
         nearest_id = 0
-        nearest_id_collision = 0
         for candidate in candidates:
             x, c = candidate[0:2], candidate[2]
             if(dis > c + np.linalg.norm(xNew - x) and np.any(xNew != x)):
@@ -182,8 +179,6 @@ class RRTstar(RRT):
                         c_num = (0xff00-c_num)*65536+0xff00
                         if(c_num > 0xffff00): #Yellow → Red
                             c_num = 0xffff00 - int((c_num-0xffff00)*0.5/65536)*256
-            fill = True
-            alpha = 0.5
             c = '#' + format(int(c_num), 'x').zfill(6)
             elems += ax.plot(x[0], x[1], marker='.', markersize=self.marker_size, color=c)
 
