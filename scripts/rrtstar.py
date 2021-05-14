@@ -22,9 +22,7 @@ class RRTstar(RRT):
         super(RRTstar, self).__init__(grid_map_world, ratioPointGoal=0.9, drawVertex=drawVertex)
         self.marker_size = 6
         self.R = R
-        self.epsilon =0.1*math.sqrt(self.world.grid_step[0]**2+self.world.grid_step[1]**2)
-        self.start_cordinate = [(self.world.start_index[0]+1/2)*self.world.grid_step[0], (self.world.start_index[1]+1/2)*self.world.grid_step[1]]
-        self.goal_cordinate = [(self.world.goal_index[0]+1/2)*self.world.grid_step[0], (self.world.goal_index[1]+1/2)*self.world.grid_step[1]]
+        self.epsilon =0.1 * np.linalg.norm(self.world.grid_step)
         self.drawReconnectAreaflag = drawReconnectAreaflag
     
     def draw(self, ax, elems):
@@ -41,97 +39,90 @@ class RRTstar(RRT):
     def RRTstar(self):
         if(self.isStart):
             x, y = self.start_cordinate
-            self.vertex.append([x, y, 0.0])
+            self.vertex = np.vstack([self.vertex, [x, y, 0.0]])
             self.parent.append(0)
             self.isStart = False
-            self.id.append([x, y])
+            self.id = np.vstack([self.id, [x, y]])
         
-        xn, yn = None, None
-        xp, yp = None, None
-        xp_n, yp_n = None, None
+        xn, xp, yp_n = None, None, None
         cost_n = None
         nearest_id = None
         isFindVertex = False
         while(isFindVertex == False):    #結べる点が得られるまで繰り返す
             #サンプリング
             if(random.random() > self.ratePointGoal and not(self.isFinish)):
-                xp, yp = self.goal_cordinate   #ある確率でゴールを選択する
+                xp = self.goal_cordinate   #ある確率でゴールを選択する
             else:
                 r1 = random.random()
                 r2 = random.random()
-                xp = self.world.grid_num[0]*self.world.grid_step[0]*r1
-                yp = self.world.grid_num[1]*self.world.grid_step[1]*r2
-                xp, yp = self.returnGoalGrid([xp, yp])
-                if(self.isObstacle([xp, yp])):
+                xp = self.world.grid_num * self.world.grid_step * np.array([r1, r2])
+                xp = self.returnGoalGrid(xp)
+                if(self.isPoseInObstacle(xp)):
                     continue
             
-            candidate = copy.copy(self.vertex)
+            candidate = self.vertex
             while(1):
-                xn, yn, xp_n, yp_n, cost_n, nearest_id = self.getNearestVertex([xp, yp], candidate)    #[xp, yp]に最も近い頂点を探索
-                if(self.isGoal([xn, yn])):
-                    [xn, yn] = self.goal_cordinate
+                xn, xp_n, cost_n, nearest_id = self.getNearestVertex(xp, candidate)    #[xp, yp]に最も近い頂点を探索
+                if(self.isPoseInGoal(xn)):
+                    xn = self.goal_cordinate
                     isFindVertex = True
                     self.isFinish = True
                     break
                 #隣接ノードと半径1.1 grid_step以内であれば除外する
                 #障害物に当たったりマップ外に出たりした場合はxn=xp_n, yn=yp_n
-                if(math.sqrt((xn-xp_n)**2 + (yn-yp_n)**2) < 0.001*math.sqrt(self.world.grid_step[0]**2+self.world.grid_step[1]**2)):
-                    candidate.pop(nearest_id)
-                    if(candidate == []):
+                if(np.linalg.norm(xn - xp_n) < 0.001 * np.linalg.norm(self.world.grid_step)):
+                    candidate = np.delete(candidate, nearest_id, 0)
+                    if(len(candidate) == 0):
                         break
                 else:
                     isFindVertex = True
                     break
         
-        cost_new = cost_n + math.sqrt((xn-xp_n)**2 + (yn-yp_n)**2)
-        self.vertex.append([xn, yn, cost_new])
-        self.edge.append([xn, yn, xp_n, yp_n])
-        self.parent.append([xp_n, yp_n])
-        self.id.append([xn, yn])
+        cost_new = cost_n + np.linalg.norm(xn - xp_n)
+        self.vertex = np.vstack([self.vertex, [xn[0], xn[1], cost_new]])
+        self.edge.append([xn[0], xn[1], xp_n[0], xp_n[1]])
+        self.parent.append([xp_n[0], xp_n[1]])
+        self.id = np.vstack([self.id, [xn[0], xn[1]]])
         
         #エッジの変更
-        for neigbor in self.getNeigborVertex([xn, yn]):
-            if(neigbor[2] > cost_new + math.sqrt((xn-neigbor[0])**2 + (yn-neigbor[1])**2)):
-                isCollision, _, _ = self.collisionFree(neigbor, [xn, yn], type2=False)
+        for vertex in self.getNeigborVertex(xn):
+            neigbor = vertex[0:2]
+            c = vertex[2]
+            if(c > cost_new + np.linalg.norm(xn - neigbor)):
+                isCollision, _ = self.collisionFree(np.array(neigbor), np.array(xn), type2=False)
                 if(isCollision == 0 or isCollision == 2):
                     continue
-                parent_vertex = self.parent[self.get_id([neigbor[0], neigbor[1]])]
+                parent_vertex = self.parent[self.get_id(neigbor)]
                 self.edge.remove([neigbor[0], neigbor[1], parent_vertex[0], parent_vertex[1]])
-                self.edge.append([neigbor[0], neigbor[1], xn, yn])
-                self.parent[self.get_id([neigbor[0], neigbor[1]])] = [xn, yn]
-                self.changeChildCost(neigbor)  
-        
-        return [xp, yp], [xn, yn], [xp_n, yp_n]    #サンプリング点，新しい点，ペアレント点を返す
+                self.edge.append([neigbor[0], neigbor[1], xn[0], xn[1]])
+                self.parent[self.get_id(neigbor)] = xn
+                self.changeChildCost(neigbor)
+        return xp, xn, xp_n    #サンプリング点，新しい点，ペアレント点を返す
     
     #最も近い頂点を探し，2つの頂点の座標とコストを返す
-    def getNearestVertex(self, xNew, candidate):
+    def getNearestVertex(self, xNew, candidates):
         dis = float('inf')
         dis_collision = float('inf')
         xNearest = []
         xNearest_collision = []
         cost_n = 0
-        cost_n_collision = 0
         nearest_id = 0
         nearest_id_collision = 0
-        for x in candidate:
-            if(dis > x[2] + (xNew[0]-x[0])**2 + (xNew[1]-x[1])**2 and xNew != x):
-                dis = x[2] + (xNew[0]-x[0])**2 + (xNew[1]-x[1])**2
-                xNearest = [x[0], x[1]]
-                cost_n = x[2]
-                nearest_id = candidate.index([x[0], x[1], x[2]])
-                    
-        if(xNearest == []):
-            xNearest = xNearest_collision
-            cost_n_collision = cost_n
-            nearest_id = nearest_id_collision            
+        for candidate in candidates:
+            x, c = candidate[0:2], candidate[2]
+            if(dis > c + np.linalg.norm(xNew - x) and np.any(xNew != x)):
+                dis = c + np.linalg.norm(xNew - x)
+                xNearest = x
+                cost_n = c
+                nearest_id = nearest_id = np.where(np.all(candidates==candidate, axis=1))[0][0]
         
-        isCollision = self.collisionFree(xNearest, xNew, type2=False)
-        if(isCollision[0] == 0):
-            return xNearest[0], xNearest[1], xNearest[0], xNearest[1], cost_n, nearest_id
-        elif(isCollision[0] == 2):
-            return isCollision[1], isCollision[2], xNearest[0], xNearest[1], cost_n, nearest_id
+        isCollision, xCollision = self.collisionFree(np.array(xNearest), np.array(xNew), type2=False)
+        if(isCollision == 0):
+            return xNearest, xNearest, cost_n, nearest_id
+        elif(isCollision == 2):
+            return xCollision, xNearest, cost_n, nearest_id
         else:
-            return xNew[0], xNew[1], xNearest[0], xNearest[1], cost_n, nearest_id
+            return xNew, xNearest, cost_n, nearest_id
     
     #近傍にあるすべての頂点を返す
     def getNeigborVertex(self, x):
@@ -139,25 +130,28 @@ class RRTstar(RRT):
         r = self.R * math.pow(math.log(N)/N, 1/2)
         neigbors = []
         for vertex in self.vertex:
-            if(math.sqrt((x[0]-vertex[0])**2 + (x[1]-vertex[1])**2) < r):
-                if([vertex[0], vertex[1]] != x):
+            y = vertex[0:2]
+            if(np.linalg.norm(x - y) < r):
+                if(np.any(y != x)):
                     neigbors.append(vertex)
         return neigbors
     
     def changeChildCost(self, vertex):
-        id = self.get_id([vertex[0], vertex[1]])
-        parent = self.parent[self.get_id([vertex[0], vertex[1]])]
-        parent_id = self.get_id([parent[0], parent[1]])
-        self.vertex[id][2] = self.vertex[parent_id][2] + math.sqrt((vertex[0]-parent[0])**2 + (vertex[1]-parent[1])**2)
+        x = vertex[0:2]
+        id = self.get_id(x)
+        parent = self.parent[self.get_id(x)]
+        x_p = parent[0:2]
+        parent_id = self.get_id(x_p)
+        self.vertex[id][2] = self.vertex[parent_id][2] + np.linalg.norm(x - x_p)
         for child in self.get_children(vertex):
             self.changeChildCost(child)
     
     def get_children(self, x):
-        parent_id = self.get_id([x[0], x[1]])
+        parent_id = self.get_id(x)
         children = []
         for child_candidate in self.vertex:
-            child_id = self.get_id([child_candidate[0], child_candidate[1]])
-            if(self.parent[child_id] == parent_id):
+            child_id = self.get_id(child_candidate[0:2])
+            if(np.all(self.parent[child_id] == parent_id)):
                 children.append(self.vertex[child_id])
         return children
     

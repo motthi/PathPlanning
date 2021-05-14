@@ -17,21 +17,21 @@ import copy
 
 
 class RRT():
-    def __init__(self, grid_map_world, ratioPointGoal=0.9, drawVertex=False):    
+    def __init__(self, grid_map_world, ratioPointGoal=0.9, drawVertex=False):
         self.world = grid_map_world
         self.grid_map = grid_map_world.grid_map
-        self.vertex = []    #[x, y, cost]
+        self.vertex = np.empty((0, 3), float)    #[x, y, cost]
         self.edge = []  #[id1, id2]
         self.candidate = []
         self.parent = []    #[x, y]
-        self.id = []    #[x, y]
+        self.id = np.empty((0, 2), float)    #[x, y]
         self.isStart = True
         self.isFinish = False
         self.isPathDraw = False
         self.ratePointGoal = ratioPointGoal
         self.marker_size = 4
-        self.start_cordinate = [(self.world.start_index[0]+1/2)*self.world.grid_step[0], (self.world.start_index[1]+1/2)*self.world.grid_step[1]]
-        self.goal_cordinate = [(self.world.goal_index[0]+1/2)*self.world.grid_step[0], (self.world.goal_index[1]+1/2)*self.world.grid_step[1]]
+        self.start_cordinate = (self.world.start_index + 1/2) * self.world.grid_step
+        self.goal_cordinate = (self.world.goal_index + 1/2) * self.world.grid_step
         self.drawVertexflag = drawVertex
     
     def draw(self, ax, elems):
@@ -47,146 +47,145 @@ class RRT():
     
     def RRT(self):
         if(self.isFinish):
-            return None, None, None       
+            return None, None, None
         if(self.isStart):
             x, y = self.start_cordinate
-            self.vertex.append([x, y, 0.0])
+            self.vertex = np.vstack([self.vertex, [x, y, 0.0]])
             self.parent.append(0)
             self.isStart = False
-            self.id.append([x, y])   
-        xn, yn = None, None
-        xp, yp = None, None
-        xp_n, yp_n = None, None
+            self.id = np.vstack([self.id, [x, y]])
+        xn, xp, xp_n = None, None, None
         cost_n = None
         nearest_id = None
         isFindVertex = False
         while(isFindVertex == False):    #結べる点が得られるまで繰り返す
             #サンプリング
             if(random.random() > self.ratePointGoal and not(self.isFinish)):
-                xp, yp = self.goal_cordinate    #ある確率でゴールを選択する
+                xp = self.goal_cordinate    #ある確率でゴールを選択する
             else:
-                r1 = random.random()
-                r2 = random.random()
-                xp = self.world.grid_num[0]*self.world.grid_step[0]*r1
-                yp = self.world.grid_num[1]*self.world.grid_step[1]*r2
-                xp, yp = self.returnGoalGrid([xp, yp])
+                xp = self.world.grid_num * self.world.grid_step * np.array([random.random(), random.random()])
+                xp = self.returnGoalGrid(xp)
             
+            candidate = self.vertex
             #新しい点を探し，衝突確認を行う
-            candidate = copy.copy(self.vertex)
             while(1):
-                xn, yn, xp_n, yp_n, cost_n, nearest_id = self.getNearestVertex([xp, yp], candidate)    #[xp, yp]に最も近い頂点を探索
-                if(self.isGoal([xn, yn])):
-                    [xn, yn] = self.goal_cordinate
+                xn, xp_n, cost_n, nearest_id = self.getNearestVertex(xp, candidate)    #[xp, yp]に最も近い頂点を探索
+                if self.isPoseInGoal(xn):
+                    xn = self.goal_cordinate
                     isFindVertex = True
                     self.isFinish = True
                     break
                 #隣接ノードと半径1.1 grid_step以内であれば除外する
                 #障害物に当たったりマップ外に出たりした場合はxn=xp_n, yn=yp_n
-                if(math.sqrt((xn-xp_n)**2 + (yn-yp_n)**2) < 0.001*math.sqrt(self.world.grid_step[0]**2+self.world.grid_step[1]**2)):
-                    candidate.pop(nearest_id)
+                if(np.linalg.norm(xn - xp_n) < 0.001*np.linalg.norm(self.world.grid_step)):
+                    candidate = np.delete(candidate, nearest_id, 0)
                     if(candidate == []):
                         break
                 else:
                     isFindVertex = True
                     break
         
-        cost_new = cost_n + math.sqrt((xn-xp_n)**2 + (yn-yp_n)**2)
-        self.vertex.append([xn, yn, cost_new])
-        self.edge.append([xn, yn, xp_n, yp_n])
-        self.parent.append([xp_n, yp_n])
-        self.id.append([xn, yn])
-        return [xp, yp], [xn, yn], [xp_n, yp_n]    #サンプリング点，新しい点，ペアレント点を返す
+        cost_new = cost_n + np.linalg.norm(xn - xp_n)
+        self.vertex = np.vstack([self.vertex,  [xn[0], xn[1], cost_new]])
+        self.edge.append([xn[0], xn[1], xp_n[0], xp_n[1]])
+        self.parent.append(xp_n)
+        self.id = np.vstack([self.id, xn])
+        return xp, xn, xp_n    #サンプリング点，新しい点，ペアレント点を返す
     
     #最も近い頂点を探し，2つの頂点の座標とコストを返す
-    def getNearestVertex(self, xNew, candidate):
+    def getNearestVertex(self, xNew, candidates):
         dis = float('inf')
         dis_collision = float('inf')
         xNearest = []
         xNearest_collision = []
         cost_n = 0
-        cost_n_collision = 0
         nearest_id = 0
         nearest_id_collision = 0
-        for x in candidate:
+        for candidate in candidates:
+            x, c = candidate[0:2], candidate[2]
             collision = 1
             #collision, _, _ = self.collisionFree(x, xNew, type2=False)
             if(collision == 1):
-                if(dis > (xNew[0]-x[0])**2 + (xNew[1]-x[1])**2 and xNew != x):
-                    dis = (xNew[0]-x[0])**2 + (xNew[1]-x[1])**2
-                    xNearest = [x[0], x[1]]
-                    cost_n = x[2]
-                    nearest_id = candidate.index([x[0], x[1], x[2]])
+                if(dis > np.linalg.norm(xNew - x) and np.any(xNew != x)):
+                    dis = np.linalg.norm(xNew - x)
+                    xNearest = x
+                    cost_n = c
+                    nearest_id = np.where(np.all(candidates==candidate, axis=1))[0][0]
             elif(collision == 0):
-                if(dis_collision > (xNew[0]-x[0])**2 + (xNew[1]-x[1])**2 and xNew != x):
-                    dis_collision = (xNew[0]-x[0])**2 + (xNew[1]-x[1])**2
-                    xNearest_collision = [x[0], x[1]]
-                    cost_n_collision = x[2]
-                    nearest_id_collision = candidate.index([x[0], x[1], x[2]])
+                if(dis_collision > np.linalg.norm(xNew - x) and np.any(xNew != x)):
+                    dis_collision = np.linalg.norm(xNew - x)
+                    xNearest_collision = x
+                    nearest_id_collision = np.where(np.all(candidates==candidate, axis=1))[0][0]
                     
         if(xNearest == []):
             xNearest = xNearest_collision
-            cost_n_collision = cost_n
             nearest_id = nearest_id_collision
         
-        isCollision = self.collisionFree(xNearest, xNew, type2=True)
-        if(isCollision[0] == 0):
-            return xNearest[0], xNearest[1], xNearest[0], xNearest[1], cost_n, nearest_id
-        elif(isCollision[0] == 2):
-            return isCollision[1], isCollision[2], xNearest[0], xNearest[1], cost_n, nearest_id
+        isCollision, xCollision = self.collisionFree(xNearest, xNew, type2=True)
+        if(isCollision == 0):
+            return xNearest, xNearest, cost_n, nearest_id
+        elif(isCollision == 2):
+            return xCollision, xNearest, cost_n, nearest_id
         else:
-            return xNew[0], xNew[1], xNearest[0], xNearest[1], cost_n, nearest_id
+            return xNew, xNearest, cost_n, nearest_id
     
     #x1, x2の間が障害物で挟まれていないか
     def collisionFree(self, x1, x2, type2=True):
-        dx = x2[0] - x1[0]
-        dy = x2[1] - x1[1]
-        dr = dx**2 + dy**2
+        d = x2 - x1
+        dr = np.linalg.norm(x2 - x1)
         x_next = x1
-        #x1から少しずつ伸ばし，障害物があるか確認する
-        while(math.sqrt((x_next[0]-x1[0])**2+(x_next[1]-x1[1])**2) < math.sqrt((x1[0]-x2[0])**2+(x1[1]-x2[1])**2)):
-            x_next = [x_next[0]+self.world.grid_step[0]*0.01*dx/dr, x_next[1]+self.world.grid_step[0]*0.01*dy/dr]
-            if(self.isObstacle(x_next)):
-                return [0, x1[0], x1[1]]    #障害物に挟まれている場合
-            if((self.isGoal(x_next) and not(self.isGoal(x1)) and not(self.isGoal(x2))) and type2):
-                return [1, self.goal_cordinate[0], self.goal_cordinate[1]]
-            if(type2 and math.sqrt((x_next[0]-x1[0])**2+(x_next[1]-x1[1])**2) > 2*math.sqrt(self.world.grid_step[0]**2+self.world.grid_step[1]**2)):
-                return [2, x_next[0], x_next[1]]    #障害物に挟まれていないが，一定距離で制限しその点を返す
-        return [1, x2[0], x2[1]]    #直接結んでも障害物に挟まれていない
+        
+        while(np.linalg.norm(x_next - x1) < np.linalg.norm(x1 - x2)): #x1から少しずつ伸ばし，障害物があるか確認する
+            x_next = x_next + self.world.grid_step * 0.01 * d / dr
+            if(self.isPoseInObstacle(x_next)): #障害物に挟まれている場合
+                return 0, x1
+            if(
+                type2 and
+                (self.isPoseInGoal(x_next) and not(self.isPoseInGoal(x1)) and not(self.isPoseInGoal(x2)))
+            ):
+                return 1, self.goal_cordinate
+            if(
+                type2 and
+                np.linalg.norm(x_next - x1) > 2 * np.linalg.norm(self.world.grid_step)
+            ): #障害物に挟まれていないが，一定距離で制限しその点を返す
+                return 2, x_next
+        return 1, x2    #直接結んでも障害物に挟まれていない
     
-    def isObstacle(self, x):
-        x_num = math.floor(x[0]/self.world.grid_step[0])
-        y_num = math.floor(x[1]/self.world.grid_step[1])
-        if(x_num >= self.world.grid_num[0] or y_num >= self.world.grid_num[1] or x_num < 0 or y_num < 0):
-            return True    #マップ外なら障害物とする
-        if(self.grid_map[x_num][y_num] == '0'):
-            return True    #障害物の場合
+    def returnGoalGrid(self, x): #ゴールのグリッドの中ならゴールの座標を返す
+        if self.isPoseInGoal(x):
+            return (self.world.goal_index + 0.5) * self.world.grid_step
+        elif self.isPoseInOutOfBounds(x):
+            return np.array([0.0, 0.0])
         else:
-            return False
-
-    def isGoal(self, x):
-        x_num = math.floor(x[0]/self.world.grid_step[0])
-        y_num = math.floor(x[1]/self.world.grid_step[1])
-        if(x_num >= self.world.grid_num[0] or y_num >= self.world.grid_num[1] or x_num < 0 or y_num < 0):
-            return False
-        if(self.grid_map[x_num][y_num] == '3'):
+            return x
+    
+    def get_id(self, x): #id取得
+        idx = np.where(np.all(self.id==x, axis=1))[0][0]
+        return idx
+    
+    def poseToIndex(self, pose):
+        return (np.array(pose[0:2]) // self.world.grid_step).astype(np.int32)
+    
+    def isPoseInObstacle(self, pose):
+        index = self.poseToIndex(pose)
+        if self.world.isObstacle(index):
             return True
         else:
             return False
-        
-    #ゴールのグリッドの中ならゴールの座標を返す
-    def returnGoalGrid(self, x):
-        x_num = math.floor(x[0]/self.world.grid_step[0])
-        y_num = math.floor(x[1]/self.world.grid_step[1])
-        if(x_num >= self.world.grid_num[0] or y_num >= self.world.grid_num[1] or x_num < 0 or y_num < 0):
-            return [0, 0]
-        if(self.grid_map[x_num][y_num] == '3'):
-            return [(self.world.goal_index[0]+1/2)*self.world.grid_step[0], (self.world.goal_index[1]+1/2)*self.world.grid_step[1]]
-        else:
-            return x 
     
-    #id取得
-    def get_id(self, x):
-        return self.id.index(x)
+    def isPoseInGoal(self, pose):
+        index = self.poseToIndex(pose)
+        if self.world.isGoal(index):
+            return True
+        else:
+            return False
+    
+    def isPoseInOutOfBounds(self, pose):
+        index = self.poseToIndex(pose)
+        if self.world.isOutOfBounds(index):
+            return True
+        else:
+            return False
     
     def drawVertex(self, ax, elems):
         for x in self.vertex:
@@ -198,7 +197,7 @@ class RRT():
             elems += ax.plot([x1, x2], [y1, y2], color="cyan", alpha=1.0)
             
     def drawExtendedEdge(self, ax, elems, x1, x2):
-        elems += ax.plot([x1[0], x2[0]], [x1[1], x2[1]], color="blue", alpha=0.5)        
+        elems += ax.plot([x1[0], x2[0]], [x1[1], x2[1]], color="blue", alpha=0.5)
     
     def drawSamplingPoint(self, ax, elems, x):
         elems += ax.plot(x[0], x[1], marker='.', color="red")
@@ -229,7 +228,7 @@ class RRT():
 
 
 if __name__ == "__main__":
-    time_span = 30
+    time_span = 15
     time_interval = 0.1
     
     grid_step = np.array([0.1, 0.1])
