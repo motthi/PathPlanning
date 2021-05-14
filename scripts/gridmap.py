@@ -12,6 +12,15 @@ import math
 import matplotlib.patches as patches
 import numpy as np
 import csv
+import tqdm
+import sys
+
+if 'google.colab' in sys.modules or 'ipykernel' in sys.modules:
+    from tqdm.notebook import tqdm  # Google Colaboratory or Jupyter Notebook
+else:
+    from tqdm import tqdm    # ipython, python script, ...
+
+neigbor_grids = np.array([[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]])
 
 
 # In[2]:
@@ -30,8 +39,8 @@ class GridMapWorld():
         timeShow="step"
     ):
         self.objects = []
-        self.grid_step = grid_step
-        self.grid_num = grid_num
+        self.grid_step = np.array(grid_step)
+        self.grid_num = np.array(grid_num)
         self.time_span = time_span
         self.time_interval = time_interval
         self.map_data = map_data
@@ -43,16 +52,14 @@ class GridMapWorld():
         with open(self.map_data) as f:
             reader = csv.reader(f)
             self.grid_map = np.array([row for row in reader]).T
-        self.start_index = [-1, -1]
-        self.goal_index = [-1, -1]
-        for index_x, grids in enumerate(self.grid_map):
-            for index_y, grid in enumerate(grids):
-                if grid == '2':
-                    # Start
-                    self.start_index = [index_x, index_y]
-                elif grid == '3':
-                    # Goal
-                    self.goal_index = [index_x, index_y]
+        self.start_index = np.array([-1, -1])
+        self.goal_index = np.array([-1, -1])
+
+        for index, grid in np.ndenumerate(self.grid_map):
+            if grid == '2':  # Start
+                self.start_index = np.array(index)
+            elif grid == '3':  # Goal
+                self.goal_index = np.array(index)
 
     def append(self, obj):
         self.objects.append(obj)
@@ -66,46 +73,26 @@ class GridMapWorld():
         ax.set_xlabel("X", fontsize=10)
         ax.set_ylabel("Y", fontsize=10)
 
-        for index_x, grids in enumerate(self.grid_map):
-            for index_y, grid in enumerate(grids):
-                if grid == '0':
-                    # Obstacle
-                    if(self.isDynamic):
-                        clr = "lightgray"
-                    else:
-                        clr = "black"
-                    r = patches.Rectangle(
-                        xy=(index_x * self.grid_step[0], index_y * self.grid_step[1]),
-                        height=self.grid_step[0],
-                        width=self.grid_step[1],
-                        color=clr
-                    )
-                    ax.add_patch(r)
-                elif grid == '2':
-                    # Start
-                    r = patches.Rectangle(
-                        xy=(index_x * self.grid_step[0], index_y * self.grid_step[1]),
-                        height=self.grid_step[0],
-                        width=self.grid_step[1],
-                        color="orange"
-                    )
-                    ax.add_patch(r)
-                    self.start_index = [index_x, index_y]
-                elif grid == '3':
-                    # Goal
-                    r = patches.Rectangle(
-                        xy=(index_x * self.grid_step[0], index_y * self.grid_step[1]),
-                        height=self.grid_step[0],
-                        width=self.grid_step[1],
-                        color="green"
-                    )
-                    ax.add_patch(r)
-                    self.goal_index = [index_x, index_y]
+        for index, grid in np.ndenumerate(self.grid_map):
+            if(grid == '2' or self.isStart(index)):  # Start
+                clr = "orange"
+            elif(grid == '3' or self.isGoal(index)):  # Goal
+                clr = "green"
+            elif(grid == '1'):  # Unoccupied
+                continue
+            elif(grid == '0'):  # Obstacles
+                if(self.isDynamic):
+                    clr = "lightgray"
+                else:
+                    clr = "black"
+            else:
+                continue
+            self.drawGrid(index, clr, 1.0, ax)
 
         elems = []
 
         if self.debug:
-            for i in range(int(self.time_span / self.time_interval)):
+            for i in tqdm(range(int(self.time_span / self.time_interval))):
                 self.one_step(i, elems, ax)
         else:
             self.ani = anm.FuncAnimation(
@@ -141,10 +128,46 @@ class GridMapWorld():
             if hasattr(obj, "one_step"):
                 obj.one_step(self.time_interval)
 
-        # アニメーション保存時にステップ数を表示したい
-        if(not(self.debug)):  # デバッグ時は表示しないようにする
-            self.step += 1
-            print(self.step)
+    def drawGrid(self, index, color, alpha, ax, fill=True, elems=None):
+        xy = index * self.grid_step
+        r = patches.Rectangle(
+            xy=(xy),
+            height=self.grid_step[0],
+            width=self.grid_step[1],
+            color=color,
+            alpha=alpha,
+            fill=fill
+        )
+        if(elems is not None):
+            elems.append(ax.add_patch(r))
+        else:
+            ax.add_patch(r)
+
+    def isObstacle(self, index):
+        if(self.isOutOfBounds(index)):
+            return True
+        if(self.grid_map[index[0], index[1]] == '0'):
+            return True
+        else:
+            return False
+
+    def isOutOfBounds(self, index):
+        if(np.any(index >= self.grid_num) or np.any(index < [0, 0])):
+            return True
+        else:
+            return False
+
+    def isStart(self, index):
+        if(np.all(index == self.start_index)):
+            return True
+        else:
+            return False
+
+    def isGoal(self, index):
+        if(np.all(index == self.goal_index)):
+            return True
+        else:
+            return False
 
 
 # In[3]:

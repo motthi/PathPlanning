@@ -7,7 +7,6 @@
 import sys
 sys.path.append("../scripts/")
 from gridmap import *
-import math
 from matplotlib.animation import PillowWriter    #アニメーション保存用
 #%matplotlib notebook
 
@@ -16,213 +15,217 @@ from matplotlib.animation import PillowWriter    #アニメーション保存用
 
 
 class Dstar():
-    def __init__(self, grid_map_world, drawCostflag=False):
-        self.world = grid_map_world
-        self.real_grid_map = grid_map_world.grid_map #実際のマップ
-        self.metric_grid_map = np.full(self.real_grid_map.shape, '-1')  #測定により得られたマップ
-        self.cost_map = np.full(self.real_grid_map.shape, 1)    #その地点が持つコスト
-        self.id_map = np.full(self.real_grid_map.shape, 0)
-        self.child_id_map = np.full(self.real_grid_map.shape, 0)
+    def __init__(
+        self, world, sensing_range=3, 
+        drawCost_flag=False, drawPathToTake_flag=True, drawTakenPath_flag=True, drawMetricMap_flag=False
+    ):
+        self.world = world
+        self.real_grid_map = world.grid_map #実際のマップ
+        self.sensing_range = []
         
-        self.h_map = np.full(self.real_grid_map.shape, 10000.0)
-        self.k_map = np.full(self.real_grid_map.shape, 10000.0)
+        for i in range(-sensing_range, sensing_range):
+            for j in range(-sensing_range, sensing_range):
+                if(np.sqrt(i**2 + j**2) > 3):
+                    continue
+                self.sensing_range.append(np.array([i, j]))
         
-        self.robot_index = self.world.start_index
         self.flag_path_draw = 0  #経路描画のフラグ
-        self.flag_map_update = False  #マップ更新のフラグ
+        self.drawCost_flag = drawCost_flag
+        self.drawPathToTake_flag = drawPathToTake_flag
+        self.drawTakenPath_flag = drawTakenPath_flag
+        self.drawMetricMap_flag = drawMetricMap_flag
         
+        self.initialize()
+        
+    def initialize(self):
+        self.metric_grid_map = np.full(world.grid_map.shape, '-1')  #測定により得られたマップ
+        self.cost_map = np.full(world.grid_map.shape, 1)    #その地点が持つコスト
+        self.id_map = np.full(world.grid_map.shape, 0)
+        self.child_id_map = np.full(world.grid_map.shape, 0)
         self.open_list = []
         self.closed_list = []
-        
-        self.path = []   #今後の経路
-        
-        self.drawCostflag = drawCostflag
+        self.pathToTake = []   #今後の経路
+        self.takenPath = []
+        self.newObstaces = []
+        self.h_map = np.full(world.grid_map.shape, 10000.0)
+        self.k_map = np.full(world.grid_map.shape, 10000.0)
+        self.currentIndex = self.world.start_index
         
         #各グリッドのIDを登録，ゴール地点のコストを決定
         grid_id = 0
-        for index_x, grids in enumerate(self.real_grid_map):
-            for index_y, grid in enumerate(grids):
-                self.id_map[index_x][index_y] = grid_id;
-                if(grid == '3'): #ゴール地点はコストをゼロにする
-                    self.h_map[index_x][index_y] = 0
-                    self.k_map[index_x][index_y] = 0
-                    self.openAppend([index_x, index_y], 0)
-                grid_id += 1
+        for index, grid in np.ndenumerate(self.real_grid_map):
+            self.id_map[index[0]][index[1]] = grid_id
+            if(grid == '3' or self.world.isGoal(index)):
+                self.h_map[index[0]][index[1]] = 0
+                self.k_map[index[0]][index[1]] = 0
+                self.openAppend(index, 0)
+            elif(grid == "2" or self.world.isStart(index)):
+                self.metric_grid_map[index[0]][index[1]] = "1"
+            grid_id += 1
           
         #既知の地図を用いて各グリッドのコストを生成し，経路を生成する
-        index = [0, 0]
+        index = np.array([-1, -1])
         k_min = 0.0
-        while(k_min != -1 and self.world.grid_map[index[0]][index[1]] != '2'):
+        while(k_min != -1 and self.world.isStart(index)):
             index = self.processState()
-            if(index == [-1, -1]):
+            if(np.all(index == [-1, -1])):
                 k_min = -1
             else:
                 k_min = self.k(index)
-    
+        
     def draw(self, ax, elems):
-        self.checkNewObstacle(ax, elems)
-        self.updateCost()
-        self.getPath()
-        if(self.drawCostflag):
-            self.drawCost(ax, elems)
-        self.drawPath(ax, elems)
+        self.checkNewObstacle(self.currentIndex)
+        self.updateCost(self.currentIndex)
+        self.getPathToTake(self.currentIndex)
+        self.drawNewObstacles(ax, elems) if(not self.drawMetricMap_flag) else None
+        self.drawCost(ax, elems) if(self.drawCost_flag) else None
+        self.drawMetricMap(ax, elems) if(self.drawMetricMap_flag) else None
+        self.drawPathToTake(ax, elems) if(self.drawPathToTake_flag) else None
         self.drawRobot(ax, elems)
-        self.moveRobot()
+        self.currentIndex = self.next(self.currentIndex)
+       
+    def plot(self, figsize=(4, 4), save_path=None):
+        fig = plt.figure(figsize=figsize)
+        ax = fig.add_subplot(111)
+        ax.set_aspect('equal')
+        ax.set_xlim(0, self.world.grid_step[0] * self.world.grid_num[0])
+        ax.set_ylim(0, self.world.grid_step[1] * self.world.grid_num[1])
+        ax.set_xlabel("X", fontsize=10)
+        ax.set_ylabel("Y", fontsize=10)
+
+        # Map
+        for index, grid in np.ndenumerate(self.world.grid_map):
+            if grid == '0':
+                self.world.drawGrid(index, "black", 1.0, ax)
+            if grid == '2' or self.world.isStart(index):  #Start
+                self.world.drawGrid(index, "orange", 1.0, ax)
+            elif grid == '3' or self.world.isGoal(index):  #Goal 
+                self.world.drawGrid(index, "green", 1.0, ax)
+        
+        for index in self.takenPath:
+            if (not self.world.isStart(index)) and (not self.world.isGoal(index)):
+                self.world.drawGrid(index, "red", 0.5, ax)
+        
+        plt.show()
+
+        if(save_path is not None):
+            fig.savefig(save_path, bbox_inches='tight', pad_inches=0.1)
+        return fig
+
+    def run(self):
+        self.initialize()
+        while not self.world.isGoal(self.currentIndex):
+            self.checkNewObstacle(self.currentIndex)
+            self.updateCost(self.currentIndex)
+            self.currentIndex = self.next(self.currentIndex)
+            self.takenPath.append(self.currentIndex)
     
-    def checkNewObstacle(self, ax, elems):
-        #新しく障害物が見つかったかどうかを確認する
-        self.flag_map_update = False
-        for i in range(-3, 6):
-                if(self.robot_index[0]+i<0 or self.robot_index[0]+i>self.cost_map.shape[0]-1): #地図の範囲外か（x軸方向）
-                    continue;
-                for j in range(-3, 6):
-                    if(self.robot_index[1]+j<0 or self.robot_index[1]+j>self.cost_map.shape[1]-1): #地図の範囲外か（y軸方向）
-                        continue
-                    elif(i==0 and j==0): #自分か
-                        continue
-                    elif(math.sqrt(i**2+j**2) >= 3):
-                        continue
-                    else:
-                        neigbor_index = [self.robot_index[0]+i, self.robot_index[1]+j]
-                        if(self.metric_grid_map[neigbor_index[0]][neigbor_index[1]] == '-1'):  #まだ探索していないグリッドの場合
-                            self.metric_grid_map[neigbor_index[0]][neigbor_index[1]] = self.real_grid_map[neigbor_index[0]][neigbor_index[1]]
-                            if(self.real_grid_map[neigbor_index[0]][neigbor_index[1]] == '0'):  #新しい障害物の場合
-                                r = patches.Rectangle(
-                                    xy=((self.robot_index[0]+i)*self.world.grid_step[0], (self.robot_index[1]+j)*self.world.grid_step[1]),
-                                    height=self.world.grid_step[0],
-                                    width=self.world.grid_step[1],
-                                    color="black",
-                                    fill=True
-                                )
-                                ax.add_patch(r)
-                                obstacle_index = [self.robot_index[0]+i, self.robot_index[1]+j]
-                                self.insert(obstacle_index, self.h(obstacle_index))
-                                self.h_map[obstacle_index[0]][obstacle_index[1]] = 10000  #障害物のコストを無限大にする
-                                
-                                #周囲のグリッドをオープンリストに追加する
-                                for k in range(-1, 2):
-                                    if(self.robot_index[0]+i+k<0 or self.robot_index[0]+i+k>self.cost_map.shape[0]-1): #地図の範囲外か（x軸方向）
-                                        continue;
-                                    for l in range(-1, 2):
-                                        if(self.robot_index[1]+j+l<0 or self.robot_index[1]+j+l>self.cost_map.shape[1]-1): #地図の範囲外か（y軸方向）
-                                            continue;
-                                        if(k==0 and l==0): #自分か
-                                            continue;
-                                        elif(self.metric_grid_map[self.robot_index[0]+i+k][self.robot_index[1]+j+l] == '0'): #障害物か
-                                            continue;
-                                        else:
-                                            neigbor_index = [self.robot_index[0]+i+k, self.robot_index[1]+j+l]
-                                            self.insert(neigbor_index, self.k(neigbor_index))
-                        else:
-                            pass
+    def next(self, index):
+        next_index = index
+        if not self.world.isGoal(self.currentIndex):
+            child_id = self.child_id_map[index[0]][index[1]]
+            child = np.where(self.id_map==child_id)
+            next_index = np.array([int(child[0]), int(child[1])])
+        return next_index
     
-    def updateCost(self):
-        #コストの更新
+    def checkNewObstacle(self, currentIndex):
+        self.newObstacles = []
+        for sensing_grid in self.sensing_range: #新しく障害物が見つかったかどうかを確認する
+            sensing_index = currentIndex + sensing_grid
+            if(self.world.isOutOfBounds(sensing_index) or np.all(currentIndex == sensing_index)):
+                continue
+            if self.isUnobserved(sensing_index):  #まだ探索していないグリッドの場合
+                self.metric_grid_map[sensing_index[0]][sensing_index[1]] = self.real_grid_map[sensing_index[0]][sensing_index[1]]
+                if self.isObservedObstacle(sensing_index):  #新しい障害物の場合
+                    self.insert(sensing_index, self.h(sensing_index))
+                    self.h_map[sensing_index[0]][sensing_index[1]] = 10000  #障害物のコストを無限大にする
+                    for adjacent_grid in neigbor_grids:  #周囲のグリッドをオープンリストに追加する
+                        adjacent_index = sensing_index + adjacent_grid
+                        if self.world.isOutOfBounds(adjacent_index):
+                            continue
+                        elif self.isObservedObstacle(adjacent_index): #障害物か
+                            continue
+                        self.insert(adjacent_index, self.k(adjacent_index))
+                    self.newObstacles.append(sensing_index)
+    
+    def updateCost(self, currentIndex):
         k_min = 0.0
-        h_now = self.h(self.robot_index)
+        h_now = self.h(currentIndex)
         while(k_min != -1 and k_min < h_now):
             index = self.processState()
-            if(index == [-1, -1]):
+            if(np.all(index == [-1, -1])):
                 k_min = -1
             else:
                 k_min = self.k(index)
     
-    def getPath(self):
-        self.path = []
-        child_id = self.id(self.robot_index)
+    def getPathToTake(self, currentIndex):
+        self.pathToTake = []
+        child_id = self.id(currentIndex)
         while(child_id != self.id(self.world.goal_index)):  #ゴールになるまでたどる
             child = np.where(self.id_map==child_id)
-            self.path.append(child)
+            self.pathToTake.append([child[0][0], child[1][0]])
             child_id = self.child_id_map[int(child[0])][int(child[1])]
-    
-    def moveRobot(self):
-        #ロボットがゴールに到達していなければ，子ノードに移動する
-        if(self.id(self.robot_index) != self.id(self.world.goal_index)):
-            child_id = self.child_id_map[self.robot_index[0]][self.robot_index[1]]
-            child = np.where(self.id_map==child_id)
-            self.robot_index = [int(child[0]), int(child[1])]
     
     def processState(self):
         index = self.getMinKGrid()
-        if(index == None):
-            return [-1, -1]
-        if(index == [-1, -1]):
-            return [-1, -1]
+        if(np.all(index == [-1, -1])):
+            return np.array([-1, -1])
         k_old = self.k(index)
         self.closeAppend(index)
         
         if(k_old < self.h(index)):
-            for i in range(-1, 2):
-                if(index[0]+i<0 or index[0]+i>self.cost_map.shape[0]-1): #地図の範囲外か（x軸方向）
-                    continue;
-                for j in range(-1, 2):
-                    if(index[1]+j<0 or index[1]+j>self.cost_map.shape[1]-1): #地図の範囲外か（y軸方向）
-                        continue;
-                    if(i==0 and j==0): #自分か
-                        continue;
-                    else:
-                        neigbor_index = [index[0]+i, index[1]+j]
-                        cost_h_new = self.h(neigbor_index) + self.c(index, neigbor_index)
-                        if(
-                            self.isNewGrid(neigbor_index) == False and
-                            self.h(neigbor_index) <= k_old and
-                            self.isHlarger(self.h(index), cost_h_new)
-                        ):
-                            self.child_id_map[index[0]][index[1]] = self.id(neigbor_index)
-                            self.h_map[index[0]][index[1]] = self.h(neigbor_index) + self.c(index, neigbor_index)
+            for neigbor_grid in neigbor_grids:
+                neigbor_index = index + neigbor_grid
+                if(self.world.isOutOfBounds(neigbor_index)):
+                    continue
+                cost_h_new = self.h(neigbor_index) + self.c(index, neigbor_index)
+                if(
+                    self.isNewGrid(neigbor_index) == False and
+                    self.h(neigbor_index) <= k_old and
+                    self.isHlarger(self.h(index), cost_h_new)
+                ):
+                    self.child_id_map[index[0]][index[1]] = self.id(neigbor_index)
+                    self.h_map[index[0]][index[1]] = self.h(neigbor_index) + self.c(index, neigbor_index)
         
         if(self.isHsame(k_old, self.h(index))):
-            for i in range(-1, 2):
-                if(index[0]+i<0 or index[0]+i>self.cost_map.shape[0]-1): #地図の範囲外か（x軸方向）
-                    continue;
-                for j in range(-1, 2):
-                    if(index[1]+j<0 or index[1]+j>self.cost_map.shape[1]-1): #地図の範囲外か（y軸方向）
-                        continue;
-                    if(i==0 and j==0): #自分か
-                        continue;
-                    else:
-                        neigbor_index = [index[0]+i, index[1]+j]
-                        cost_h_new = self.h(index)+self.c(index, neigbor_index)
-                        if(
-                            self.isNewGrid(neigbor_index) or
-                            (self.b(neigbor_index)==self.id(index) and self.isHsame(self.h(neigbor_index), cost_h_new)==False) or
-                            (self.b(neigbor_index)!=self.id(index) and self.isHlarger(self.h(neigbor_index), cost_h_new))
-                        ):
-                            self.child_id_map[neigbor_index[0]][neigbor_index[1]] = self.id(index)
-                            self.insert(neigbor_index, cost_h_new)                 
+            for neigbor_grid in neigbor_grids:
+                neigbor_index = index + neigbor_grid
+                if(self.world.isOutOfBounds(neigbor_index)):
+                    continue
+                cost_h_new = self.h(index)+self.c(index, neigbor_index)
+                if(
+                    self.isNewGrid(neigbor_index) or
+                    (self.b(neigbor_index) == self.id(index) and self.isHsame(self.h(neigbor_index), cost_h_new) == False) or
+                    (self.b(neigbor_index) != self.id(index) and self.isHlarger(self.h(neigbor_index), cost_h_new))
+                ):
+                    self.child_id_map[neigbor_index[0]][neigbor_index[1]] = self.id(index)
+                    self.insert(neigbor_index, cost_h_new)                 
         else:
-            for i in range(-1, 2):
-                if(index[0]+i<0 or index[0]+i>self.cost_map.shape[0]-1): #地図の範囲外か（x軸方向）
-                    continue;
-                for j in range(-1, 2):
-                    if(index[1]+j<0 or index[1]+j>self.cost_map.shape[1]-1): #地図の範囲外か（y軸方向）
-                        continue;
-                    if(i==0 and j==0): #自分か
-                        continue;
-                    else:
-                        neigbor_index = [index[0]+i, index[1]+j]
-                        cost_h_new = self.h(index) + self.c(index, neigbor_index)
-                        if(
-                            self.isNewGrid(neigbor_index) or
-                            (self.b(neigbor_index)==self.id(index) and self.isHsame(self.h(neigbor_index), cost_h_new)==False)
-                        ):
-                            self.child_id_map[neigbor_index[0]][neigbor_index[1]] = self.id(index)
-                            self.insert(neigbor_index, cost_h_new)
-                        elif(
-                            self.b(neigbor_index) != self.id(index) and
-                            self.isHlarger(self.h(neigbor_index), cost_h_new)
-                        ):
-                            self.insert(index, self.h(index))
-                        elif(
-                            self.b(neigbor_index) != self.id(index) and
-                            self.isHlarger(self.h(index), self.h(neigbor_index) + self.c(index, neigbor_index)) and
-                            self.isClosedGrid(neigbor_index) and
-                            self.h(neigbor_index)>k_old
-                        ):
-                            self.insert(neigbor_index, self.h(neigbor_index))
-                        else:
-                            pass
-
+            for neigbor_grid in neigbor_grids:
+                neigbor_index = index + neigbor_grid
+                if(self.world.isOutOfBounds(neigbor_index)):
+                    continue
+                cost_h_new = self.h(index) + self.c(index, neigbor_index)
+                if(
+                    self.isNewGrid(neigbor_index) or
+                    (self.b(neigbor_index) == self.id(index) and self.isHsame(self.h(neigbor_index), cost_h_new) == False)
+                ):
+                    self.child_id_map[neigbor_index[0]][neigbor_index[1]] = self.id(index)
+                    self.insert(neigbor_index, cost_h_new)
+                elif(
+                    self.b(neigbor_index) != self.id(index) and
+                    self.isHlarger(self.h(neigbor_index), cost_h_new)
+                ):
+                    self.insert(index, self.h(index))
+                elif(
+                    self.b(neigbor_index) != self.id(index) and
+                    self.isHlarger(self.h(index), self.h(neigbor_index) + self.c(index, neigbor_index)) and
+                    self.isClosedGrid(neigbor_index) and
+                    self.h(neigbor_index) > k_old
+                ):
+                    self.insert(neigbor_index, self.h(neigbor_index))
+                else:
+                    pass
         index = self.getMinKGrid()        
         return index
     
@@ -245,19 +248,19 @@ class Dstar():
         self.k_map[index[0]][index[1]] = k
         self.h_map[index[0]][index[1]] = h_new
      
-    def isOpenedGrid(self, index): #オープンリストかどうか
+    def isOpenedGrid(self, index):
         if(self.id_map[index[0]][index[1]] in [val[0] for val in self.open_list]):
             return True
         else:
             return False
         
-    def isClosedGrid(self, index):  #クローズリストかどうか
+    def isClosedGrid(self, index):
         if(self.id_map[index[0]][index[1]] in self.closed_list):
             return True
         else:
             return False
         
-    def isNewGrid(self, index):  #新しいグリッドか（オープンでもなくクローズでもない）
+    def isNewGrid(self, index):
         if(self.id_map[index[0]][index[1]] in [val[0] for val in self.open_list]):
             return False
         elif(self.id_map[index[0]][index[1]] in self.closed_list):
@@ -284,11 +287,11 @@ class Dstar():
     
     def getMinKGrid(self):
         if(self.open_list == []):
-            return [-1, -1]
+            return np.array([-1, -1])
         val = np.argmin(self.open_list, axis=0) #評価マップの中から最も小さいもの抽出
         grid_id = self.open_list[val[1]][0]
         index = np.where(self.id_map==grid_id)
-        return [index[0][0], index[1][0]]
+        return np.array([index[0][0], index[1][0]])
     
     def isHsame(self, cost_h1, cost_h2):
         if(cost_h1 == cost_h2):
@@ -321,87 +324,68 @@ class Dstar():
         if(self.metric_grid_map[index[0]][index[1]] == '0' or self.metric_grid_map[neigbor_index[0]][neigbor_index[1]] == '0'):
             return 10000
         else:
-            if((neigbor_index[0]-index[0])**2 + (neigbor_index[1]-index[1])**2 > 1.4):
-                return 1.41421356
-            else:
-                return 1.0
+            return np.linalg.norm(neigbor_index - index)
 
     def id(self, index):
         return self.id_map[index[0]][index[1]]
     
-    def drawPath(self, ax, elems):
-        for n in self.path:
-            r = patches.Rectangle(
-                xy=((n[0])*self.world.grid_step[0], (n[1])*self.world.grid_step[1]),
-                height=self.world.grid_step[0],
-                width=self.world.grid_step[1],
-                color="red",
-                alpha = 0.5,
-                fill=True
-            )
-            elems.append(ax.add_patch(r))
+    def isUnobserved(self, index):
+        if self.metric_grid_map[index[0]][index[1]] == '-1':
+            return True
+        else:
+            return False
+    
+    def isObservedObstacle(self, index):
+        if self.metric_grid_map[index[0]][index[1]] == '0':
+            return True
+        else:
+            return False
+    
+    def drawNewObstacles(self, ax, elems):
+        for index in self.newObstacles:
+            self.world.drawGrid(index, "black", 1.0, ax, fill=True)
+    
+    def drawPathToTake(self, ax, elems):
+        for n in self.pathToTake:
+            self.world.drawGrid(n, "red", 0.5, ax, elems=elems)
     
     def drawRobot(self, ax, elems):
-        #ロボットの描画
-        if(self.id(self.robot_index) != self.id(self.world.start_index)):
-            r = patches.Rectangle(
-                xy=((self.robot_index[0])*self.world.grid_step[0], (self.robot_index[1])*self.world.grid_step[1]),
-                height=self.world.grid_step[0],
-                width=self.world.grid_step[1],
-                color="magenta",
-                alpha = 0.5,
-                fill=True
-            )
-            ax.add_patch(r)
-        r = patches.Rectangle(
-            xy=((self.robot_index[0])*self.world.grid_step[0], (self.robot_index[1])*self.world.grid_step[1]),
-            height=self.world.grid_step[0],
-            width=self.world.grid_step[1],
-            color="blue",
-            fill=True
-        )
-        elems.append(ax.add_patch(r))
+        if(self.id(self.currentIndex) != self.id(self.world.start_index)):
+            self.world.drawGrid(self.currentIndex, "magenta", 0.5, ax) if(self.drawTakenPath_flag) else None
+        self.world.drawGrid(self.currentIndex, "blue", 1.0, ax, elems=elems)
     
-    def drawCost(self, ax, elems): #コストの描画
-        for index_x, grids in enumerate(self.metric_grid_map):
-            for index_y, grid in enumerate(grids):
-                if(self.k([index_x, index_y]) < 10000):
-                    c_num = int(self.k([index_x, index_y])) #Black→Blue
-                    c_num = int(c_num * 7.5)
-                    if(c_num > 0xff): #Blue → Cyan
-                        c_num = (c_num-0xff)*16*16 + 0xff
-                        if(c_num > 0xffff): #Cyan → Green
-                            c_num = 0xffff - int((c_num-0x100ff)*4/256)
-                            if(c_num < 0xff00): #Green →Yellow
-                                c_num = (0xff00-c_num)*65536+0xff00
-                                if(c_num > 0xffff00): #Yellow → Red
-                                    c_num = 0xffff00 - int((c_num-0xffff00)*0.5/65536)*256
-                    fill = True
-                    alpha = 0.5
-                    c = '#' + format(int(c_num), 'x').zfill(6)
-                    #print(index_x, index_y, self.k([index_x, index_y]))
-
-                    r = patches.Rectangle(
-                        xy=((index_x)*self.world.grid_step[0], (index_y)*self.world.grid_step[1]),
-                        height=self.world.grid_step[0],
-                        width=self.world.grid_step[1],
-                        color=c,
-                        fill=fill,
-                        alpha=alpha
-                    )
-                    elems.append(ax.add_patch(r))
-                else:
-                    #RAISE状態のセルを描画
-                    #r = patches.Rectangle(
-                    #    xy=((index_x)*self.world.grid_step[0], (index_y)*self.world.grid_step[1]),
-                    #    height=self.world.grid_step[0],
-                    #    width=self.world.grid_step[1],
-                    #    color='red',
-                    #    fill=True,
-                    #    alpha=1.0
-                    #)
-                    #elems.append(ax.add_patch(r))
-                    continue;
+    def drawCost(self, ax, elems):
+        for index, grid in np.ndenumerate(self.metric_grid_map):
+            if(self.k(index) < 10000):
+                c_num = int(self.k(index)) #Black→Blue
+                c_num = int(c_num * 7.5)
+                if(c_num > 0xff): #Blue → Cyan
+                    c_num = (c_num-0xff)*16*16 + 0xff
+                    if(c_num > 0xffff): #Cyan → Green
+                        c_num = 0xffff - int((c_num-0x100ff)*4/256)
+                        if(c_num < 0xff00): #Green →Yellow
+                            c_num = (0xff00-c_num)*65536+0xff00
+                            if(c_num > 0xffff00): #Yellow → Red
+                                c_num = 0xffff00 - int((c_num-0xffff00)*0.5/65536)*256
+                fill = True
+                alpha = 0.5
+                c = '#' + format(int(c_num), 'x').zfill(6)
+                self.world.drawGrid(index, c, alpha, ax, fill, elems)
+            else:
+                #RAISE状態のセルを描画
+                #self.world.drawGrid(index, "red", 1.0, ax, True, elems)
+                continue
+                
+    def drawMetricMap(self, ax, elems):
+        for index, grid in np.ndenumerate(self.metric_grid_map):
+            if(grid == "1"):
+                continue
+            elif(grid == "-1"):
+                c = "lightgray"
+            elif(grid == "0"):
+                c = "black"
+            self.world.drawGrid(index, c, 1.0, ax, elems=elems)
+        self.world.drawGrid(self.world.goal_index, "green", 1.0, ax, elems=elems)
 
 
 # In[3]:
