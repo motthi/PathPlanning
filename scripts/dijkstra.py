@@ -95,12 +95,15 @@ class Dijkstra():
         
     def next(self, index):
         if(len(self.resultPath) == 0):
-            raise Exception("Dijkstra Algorithm hasn't run")
-        idx = np.where(np.all(self.resultPath==index, axis=1)==True)[0][0]
-        if(idx == 0):
-            next_index = self.world.goal_index
+            raise PathNotCalculatedError("Path did not calculate")
+        if self.world.isGoal(index):
+            return index
         else:
-            next_index = self.resultPath[idx-1]
+            idx = np.where(np.all(self.resultPath==index, axis=1)==True)[0][0]
+            if(idx == 0):
+                next_index = self.world.goal_index
+            else:
+                next_index = self.resultPath[idx-1]
         return next_index
         
     def calculateCost(self, index, cost_f, cost_g):  #コストの計算
@@ -183,6 +186,9 @@ class Dijkstra():
         for grid in self.resultPath:
             if (not self.world.isStart(grid)) and (not self.world.isGoal(grid)):
                 self.world.drawGrid(grid, "red", 0.5, ax, elems)
+                
+class PathNotCalculatedError(Exception):
+    pass
 
 
 # In[3]:
