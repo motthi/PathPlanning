@@ -13,6 +13,7 @@ import numpy as np
 import csv
 import tqdm
 import sys
+import random
 
 if 'google.colab' in sys.modules or 'ipykernel' in sys.modules:
     from tqdm.notebook import tqdm  # Google Colaboratory or Jupyter Notebook
@@ -22,7 +23,7 @@ else:
 neigbor_grids = np.array([[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]])
 
 
-# In[2]:
+# In[6]:
 
 
 class GridMapWorld():
@@ -164,9 +165,29 @@ class GridMapWorld():
             return True
         else:
             return False
+        
+    def resetStartAndGoal(self, start_index=None, goal_index=None, distance=100):
+        if np.any(self.start_index != None):
+            self.grid_map[self.start_index[0]][self.start_index[1]] = '1'
+        if np.any(self.goal_index != None):
+            self.grid_map[self.goal_index[0]][self.goal_index[1]] = '1'
+        if np.any(start_index == None) or np.any(goal_index == None):
+            self.start_index = np.array([random.randint(0, self.grid_num[0] - 1), random.randint(0, self.grid_num[1] - 1)])
+            self.goal_index = np.array([random.randint(0, self.grid_num[0] - 1), random.randint(0, self.grid_num[1] - 1)])
+            while(self.isObstacle(self.start_index) or self.isObstacle(self.goal_index) or self.distance(self.start_index, self.goal_index) < distance):
+                self.start_index = np.array([random.randint(0, self.grid_num[0] - 1), random.randint(0, self.grid_num[1] - 1)])
+                self.goal_index = np.array([random.randint(0, self.grid_num[0] - 1), random.randint(0, self.grid_num[1] - 1)])
+        else:
+            self.start_index = start_index
+            self.goal_index = goal_index
+        self.grid_map[self.start_index[0]][self.start_index[1]] = '2'
+        self.grid_map[self.goal_index[0]][self.goal_index[1]] = '3'
+        
+    def distance(self, index1, index2):
+        return np.linalg.norm(index1 - index2)
 
 
-# In[3]:
+# In[9]:
 
 
 if __name__ == "__main__":
@@ -176,10 +197,10 @@ if __name__ == "__main__":
     grid_step = [0.1, 0.1]
     grid_num = [30, 30]
 
-    map_data = "csvmap/map1.csv"
+    map_data = "csvmap/map2.csv"
 
     world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, debug=False, is_dynamic=False)
-
+    
     world.draw()
     #world.ani.save('input.gif', writer='pillow', fps=60)    #アニメーション保存
 
