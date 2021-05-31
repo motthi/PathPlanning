@@ -37,9 +37,14 @@ class IdealRobot:
     def state_transition(self, nu, omega, time, pose):
         t0 = pose[2]
         if math.fabs(omega) < 1e-10:
-            return pose + np.array([nu * np.cos(t0), nu * np.sin(t0), omega]) * time
+            pose = pose + np.array([nu * np.cos(t0), nu * np.sin(t0), omega]) * time
         else:
-            return pose + np.array([nu / omega * (np.sin(t0 + omega * time) - np.sin(t0)), nu / omega * (-np.cos(t0 + omega * time) + np.cos(t0)), omega * time])
+            pose = pose + np.array([nu / omega * (np.sin(t0 + omega * time) - np.sin(t0)), nu / omega * (-np.cos(t0 + omega * time) + np.cos(t0)), omega * time])
+        while(pose[2] < -np.pi):
+            pose[2] += 2 * np.pi
+        while(pose[2] > np.pi):
+            pose[2] -= 2 * np.pi
+        return pose
 
     def one_step(self, time_interval):
         if not self.agent:
