@@ -95,7 +95,8 @@ class Dijkstra():
 
     def next(self, index):
         if(len(self.resultPath) == 0):
-            raise PathNotCalculatedError("Path did not calculate")
+            raise PathNotCalculatedError("Path are not calculated")
+            return
         if self.world.isGoal(index):
             return index
         else:
