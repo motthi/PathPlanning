@@ -62,8 +62,9 @@ class DstarLite():
         #if(self.g(self.currentIndex) == float('inf')):
         #    return
         
-        self.currentIndex = self.next(self.currentIndex)
+        # Check New Obstacle -> Move to Next Index
         self.checkNewObstacle(self.currentIndex)
+        self.currentIndex = self.next(self.currentIndex)
         self.getPathToTake(self.currentIndex)
         self.drawRobot(ax, elems)
         self.drawNewObstacles(ax, elems) if(not self.drawMetricMap_flag) else None
@@ -117,8 +118,8 @@ class DstarLite():
     def run(self):
         self.initialize()
         while not self.world.isGoal(self.currentIndex):
-            self.currentIndex = self.next(self.currentIndex)
             self.checkNewObstacle(self.currentIndex)
+            self.currentIndex = self.next(self.currentIndex)
             self.takenPath.append(self.currentIndex)
             
     def checkNewObstacle(self, index):

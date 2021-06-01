@@ -163,7 +163,7 @@ class PathFollower(Robot):
         return d_theta
 
 
-# In[21]:
+# In[3]:
 
 
 class BugFollower(PathFollower):
@@ -230,7 +230,7 @@ class BugFollower(PathFollower):
         return candidate_path
 
 
-# In[23]:
+# In[4]:
 
 
 if __name__ == "__main__":
@@ -243,7 +243,7 @@ if __name__ == "__main__":
     map_data = "./csvmap/mr/map_30.csv"
     #map_data = "./csvmap/map2.csv"
 
-    world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, time_show="time", debug=False, is_dynamic=False)
+    world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, time_show="time", debug=False, is_dynamic=True)
     #world.resetStartAndGoal(np.array([30, 2]), np.array([78, 90]))
     world.resetStartAndGoal(np.array([9, 97]), np.array([97, 26]))
     #world.resetStartAndGoal()
@@ -251,9 +251,10 @@ if __name__ == "__main__":
     
     #pp_algorithm = DstarLite(world, drawMetricMap_flag=True)
     #pp_algorithm = Astar(world)
-    pp_algorithm = BUG(world)
-    #world.append(PathFollower(world, pp_algorithm))
-    world.append(BugFollower(world))
+    #pp_algorithm = BUG(world)
+    pp_algorithm = Dstar(world, drawMetricMap_flag=True)
+    world.append(PathFollower(world, pp_algorithm))
+    #world.append(BugFollower(world))
     world.draw(figsize=(8, 8))
     #world.ani.save('path_bug.', writer='ffmpeg', fps=100)    #アニメーション保存
 

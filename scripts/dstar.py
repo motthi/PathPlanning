@@ -38,17 +38,17 @@ class Dstar():
         self.initialize()
         
     def initialize(self):
-        self.metric_grid_map = np.full(world.grid_map.shape, '-1')  #測定により得られたマップ
-        self.cost_map = np.full(world.grid_map.shape, 1)    #その地点が持つコスト
-        self.id_map = np.full(world.grid_map.shape, 0)
-        self.child_id_map = np.full(world.grid_map.shape, 0)
+        self.metric_grid_map = np.full(self.world.grid_map.shape, '-1')  #測定により得られたマップ
+        self.cost_map = np.full(self.world.grid_map.shape, 1)    #その地点が持つコスト
+        self.id_map = np.full(self.world.grid_map.shape, 0)
+        self.child_id_map = np.full(self.world.grid_map.shape, 0)
         self.open_list = []
         self.closed_list = []
         self.pathToTake = []   #今後の経路
         self.takenPath = []
         self.newObstaces = []
-        self.h_map = np.full(world.grid_map.shape, 10000.0)
-        self.k_map = np.full(world.grid_map.shape, 10000.0)
+        self.h_map = np.full(self.world.grid_map.shape, 10000.0)
+        self.k_map = np.full(self.world.grid_map.shape, 10000.0)
         self.currentIndex = self.world.start_index
         
         #各グリッドのIDを登録，ゴール地点のコストを決定
@@ -74,15 +74,17 @@ class Dstar():
                 k_min = self.k(index)
         
     def draw(self, ax, elems):
+        
+        # Check New Obstacle -> Move to Next Index
         self.checkNewObstacle(self.currentIndex)
-        self.updateCost(self.currentIndex)
+        self.currentIndex = self.next(self.currentIndex)
+        
         self.getPathToTake(self.currentIndex)
         self.drawNewObstacles(ax, elems) if(not self.drawMetricMap_flag) else None
+        self.drawPathToTake(ax, elems) if(self.drawPathToTake_flag) else None
         self.drawCost(ax, elems) if(self.drawCost_flag) else None
         self.drawMetricMap(ax, elems) if(self.drawMetricMap_flag) else None
-        self.drawPathToTake(ax, elems) if(self.drawPathToTake_flag) else None
         self.drawRobot(ax, elems)
-        self.currentIndex = self.next(self.currentIndex)
     
     def plot(self, figsize=(4, 4), save_path=None):
         fig = plt.figure(figsize=figsize)
@@ -116,11 +118,11 @@ class Dstar():
         self.initialize()
         while not self.world.isGoal(self.currentIndex):
             self.checkNewObstacle(self.currentIndex)
-            self.updateCost(self.currentIndex)
             self.currentIndex = self.next(self.currentIndex)
             self.takenPath.append(self.currentIndex)
     
     def next(self, index):
+        self.updateCost(index)
         next_index = index
         if not self.world.isGoal(self.currentIndex):
             child_id = self.child_id_map[index[0]][index[1]]
