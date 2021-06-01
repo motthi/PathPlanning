@@ -117,6 +117,8 @@ class BUG():
             next_index = index + neigbor_grids[neigbor_grid]
             if(self.world.isObstacle(next_index)):
                 self.alongObstacle = True
+                if np.all(next_chk_index == None):
+                    return self.prev_next_index
                 next_index = self.moveCW(index, next_chk_index)
             else:
                 self.mLine_min = np.linalg.norm(self.world.goal_index - index)
