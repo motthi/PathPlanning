@@ -22,6 +22,7 @@ class BUG():
         self.m_line = np.array([])
         self.drawMLine_flag = drawMLine_flag
         self.takenPath = []
+        self.pp_algorithm_name = "BUG"
         
     def initialize(self):
         self.m_line = np.array([])

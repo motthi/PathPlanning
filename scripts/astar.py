@@ -17,6 +17,7 @@ from matplotlib.animation import PillowWriter    #アニメーション保存用
 class Astar(Dijkstra):
     def __init__(self, world, drawTakenPath_flag=True, drawCost_flag=False, cost_adj1=15.0, cost_adj2=2.0):
         super(Astar, self).__init__(world, drawTakenPath_flag=drawTakenPath_flag, drawCost_flag=drawCost_flag, cost_adj1=cost_adj1, cost_adj2=cost_adj2)
+        self.pp_algorithm_name = "Astar"
     
     def draw(self, ax, elems):
         if not(self.isClosed(self.world.goal_index)): #ゴールにたどり着いていなければコストを計算

@@ -34,6 +34,7 @@ class Dstar():
         self.drawPathToTake_flag = drawPathToTake_flag
         self.drawTakenPath_flag = drawTakenPath_flag
         self.drawMetricMap_flag = drawMetricMap_flag
+        self.pp_algorithm_name = "Dstar"
         
         self.initialize()
         

@@ -30,6 +30,7 @@ class DstarLite():
                 if(np.sqrt(i**2 + j**2) > 3):
                     continue
                 self.sensing_range.append(np.array([i, j]))
+        self.pp_algorithm_name = "DstarLite"
         
         self.initialize()
         
