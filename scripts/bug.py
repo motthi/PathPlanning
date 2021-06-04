@@ -198,7 +198,7 @@ class BUG():
                 self.prev_obs = index + [1, 0]
             elif not self.world.isObstacle(index + [-1, 0]):
                 next_index = index + [-1, 0]
-                self.prev_obs = index ; [0, 1]
+                self.prev_obs = index + [0, 1]
             else:
                 next_index = index + [0, 1]
         return next_index
@@ -207,7 +207,6 @@ class BUG():
         for line in self.m_line:
             if not(self.world.isStart(line) or self.world.isGoal(line)):
                 self.world.drawGrid(line, "lime", 0.5, ax)
-
 
 class PathNotCalculatedError(Exception):
     pass
