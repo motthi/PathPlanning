@@ -65,3 +65,7 @@
 #### REINFORCE
 
 ![result](https://github.com/motthi/PathPlanning/blob/master/gif/reinforce_map1.gif)
+
+### Path Following
+
+![result](https://github.com/motthi/PathPlanning/blob/master/gif/pathfollower.gif)

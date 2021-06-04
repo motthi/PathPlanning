@@ -16,9 +16,9 @@ from environment import*
 
 
 class IdealRobot:
-    def __init__(self, pose, agent=None, sensor=None, robot_color="black", path_color="red"):
+    def __init__(self, pose, agent=None, sensor=None, robot_color="black", path_color="red", r=0.4):
         self.pose = pose
-        self.r = 0.4
+        self.r = r
         self.robot_color = robot_color
         self.path_color = path_color
         self.agent = agent
@@ -123,12 +123,12 @@ class IdealRobot:
 
 class Robot(IdealRobot):
     def __init__(
-        self, pose, agent=None, sensor=None, robot_color="black", path_color="red",
+        self, pose, agent=None, sensor=None, robot_color="black", path_color="red", r=0.4,
         noise_per_meter=5, noise_std=math.pi/60, bias_rate_stds=(0.0,0.0),
         expected_stuck_time=1e100, expected_escape_time = 1e-100,
         expected_kidnap_time=1e100, kidnap_range_x = (-5.0,5.0), kidnap_range_y = (-5.0,5.0)
     ):
-        super().__init__(pose, agent, sensor, robot_color, path_color)
+        super().__init__(pose, agent, sensor, robot_color, path_color, r)
         self.noise_pdf = expon(scale=1.0/(1e-100 + noise_per_meter))
         self.distance_until_noise = self.noise_pdf.rvs()
         self.theta_noise = norm(scale=noise_std)
