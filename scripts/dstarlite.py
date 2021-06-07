@@ -7,6 +7,7 @@
 import sys
 sys.path.append("../scripts/")
 from gridmap import *
+from sensor import *
 from matplotlib.animation import PillowWriter    #アニメーション保存用
 #%matplotlib notebook
 
@@ -15,27 +16,25 @@ from matplotlib.animation import PillowWriter    #アニメーション保存用
 
 
 class DstarLite():
-    def __init__(self, world, sensing_range=3, drawCost_flag=False, drawTakenPath_flag=True, drawPathToTake_flag=True, drawMetricMap_flag=False, cost_adj=13):
+    def __init__(
+        self, world, sensor,
+        drawCost_flag=False, drawTakenPath_flag=True, drawPathToTake_flag=True, drawMetricMap_flag=False, cost_adj=13
+    ):
         self.world = world
         self.real_grid_map = world.grid_map #実際のマップ
+        self.sensor = sensor
+        
         self.drawCost_flag = drawCost_flag
         self.drawPathToTake_flag = drawPathToTake_flag
         self.drawMetricMap_flag = drawMetricMap_flag
         self.drawTakenPath_flag = drawTakenPath_flag
         self.cost_adj = cost_adj
-        
-        self.sensing_range = []
-        for i in range(-sensing_range, sensing_range):
-            for j in range(-sensing_range, sensing_range):
-                if(np.sqrt(i**2 + j**2) > 3):
-                    continue
-                self.sensing_range.append(np.array([i, j]))
         self.pp_algorithm_name = "DstarLite"
         
         self.initialize()
         
     def initialize(self):
-        self.metric_grid_map = np.full(self.real_grid_map.shape, '-1')  #測定により得られたマップ
+        self.metric_grid_map = np.full(self.real_grid_map.shape, -1)  #測定により得られたマップ
         self.cost_map = np.full(self.real_grid_map.shape, 1)    #その地点が持つコスト
         self.id_map = np.full(self.real_grid_map.shape, 0)
         self.g_map = np.full(self.real_grid_map.shape, float('inf'))
@@ -55,7 +54,7 @@ class DstarLite():
                 self.rhs_map[index[0]][index[1]] = 0
                 self.uAppend(index, [self.h(self.world.start_index, self.world.goal_index), 0])
             elif(grid == "2" or self.world.isStart(index)):
-                self.metric_grid_map[index[0]][index[1]] = "1"
+                self.metric_grid_map[index[0]][index[1]] = 0
             grid_id += 1
         self.computeShortestPath(self.world.start_index)
         
@@ -67,10 +66,10 @@ class DstarLite():
         self.checkNewObstacle(self.currentIndex)
         self.currentIndex = self.next(self.currentIndex)
         self.getPathToTake(self.currentIndex)
-        self.drawRobot(ax, elems)
         self.drawNewObstacles(ax, elems) if(not self.drawMetricMap_flag) else None
         self.drawMetricMap(ax, elems) if(self.drawMetricMap_flag) else None
         self.drawPathToTake(ax, elems) if(self.drawPathToTake_flag) else None
+        self.drawRobot(ax, elems)
         self.drawCost(ax, elems, cost_adj) if(self.drawCost_flag) else None
     
     def plot(self, figsize=(4, 4), save_path=None):
@@ -124,40 +123,71 @@ class DstarLite():
             self.takenPath.append(self.currentIndex)
             
     def checkNewObstacle(self, index):
-        self.newObstacles = []
-        for grid in self.sensing_range:
-            u = index + grid
-            if(self.world.isOutOfBounds(u) or np.all(index == u)):
-                continue
-            if self.isUnobserved(u):
-                self.metric_grid_map[u[0]][u[1]] = self.real_grid_map[u[0]][u[1]]
-                if(self.world.isObstacle(u)):  #新しい障害物の場合
-                    self.flag_map_update = True
-                    self.newObstacles.append(u)
+        obstacles = self.sensor.sense(index)
+        self.newObstacles = [obstacle[0] for obstacle in obstacles]
+        for u, occupancy in obstacles:
+            prev_u_obs_flag = self.isObservedObstacle(u)
+            self.metric_grid_map[u[0]][u[1]] = occupancy
+            for grid in neigbor_grids:
+                v = u + grid
+                if self.world.isOutOfBounds(v):
+                    continue
+                c_old = self.c(u, v)
 
-                    #周囲のグリッドをオープンリストに追加する
-                    for grid in neigbor_grids:
-                        v = u + grid
-                        if self.world.isOutOfBounds(v):
-                            continue
-                        c_old = 1.41421356 if(np.all(np.abs(u - v) == [1, 1])) else 1.0
-                        if(c_old > self.c(u, v)):
-                            if not self.world.isGoal(u):
-                                self.rhs_map[u[0]][u[1]] = min(self.rhs(u), self.c(u, v)+self.g(v))
-                        elif(self.rhs(u) == c_old + self.g(v)):
-                            if not self.world.isGoal(u):
-                                self.rhs_map[u[0]][u[1]] = self.getMinRhs(u)
-                        self.updateVertex(u)
+                if prev_u_obs_flag or self.isObservedObstacle(v):
+                    c_old = float('inf')
+                else:
+                    c_old = 1.41 if(np.all(np.abs(u - v) == [1, 1])) else 1.0
 
-                        if(c_old > self.c(v, u)):
-                            if not self.world.isGoal(v):
-                                self.rhs_map[v[0]][v[1]] = min(self.rhs(v), self.c(v, u)+self.g(u))
-                        elif(self.rhs(v) == c_old + self.g(u)):
-                            if not self.world.isGoal(v):
-                                self.rhs_map[v[0]][v[1]] = self.getMinRhs(v)
-                        self.updateVertex(v)
-            else:
-                pass
+                if(c_old > self.c(u, v)):
+                    if not self.world.isGoal(u):
+                        self.rhs_map[u[0]][u[1]] = min(self.rhs(u), self.c(u, v)+self.g(v))
+                elif(self.rhs(u) == c_old + self.g(v)):
+                    if not self.world.isGoal(u):
+                        self.rhs_map[u[0]][u[1]] = self.getMinRhs(u)
+                self.updateVertex(u)
+
+                if(c_old > self.c(v, u)):
+                    if not self.world.isGoal(v):
+                        self.rhs_map[v[0]][v[1]] = min(self.rhs(v), self.c(v, u)+self.g(u))
+                elif(self.rhs(v) == c_old + self.g(u)):
+                    if not self.world.isGoal(v):
+                        self.rhs_map[v[0]][v[1]] = self.getMinRhs(v)
+                self.updateVertex(v)
+        
+#         for grid in self.sensing_range:
+#             u = index + grid
+#             if(self.world.isOutOfBounds(u) or np.all(index == u)):
+#                 continue
+#             if self.isUnobserved(u):
+#                 self.metric_grid_map[u[0]][u[1]] = self.real_grid_map[u[0]][u[1]]
+#                 if(self.world.isObstacle(u)):  #新しい障害物の場合
+#                     self.flag_map_update = True
+#                     self.newObstacles.append(u)
+
+#                     #周囲のグリッドをオープンリストに追加する
+#                     for grid in neigbor_grids:
+#                         v = u + grid
+#                         if self.world.isOutOfBounds(v):
+#                             continue
+#                         c_old = 1.41 if(np.all(np.abs(u - v) == [1, 1])) else 1.0
+#                         if(c_old > self.c(u, v)):
+#                             if not self.world.isGoal(u):
+#                                 self.rhs_map[u[0]][u[1]] = min(self.rhs(u), self.c(u, v)+self.g(v))
+#                         elif(self.rhs(u) == c_old + self.g(v)):
+#                             if not self.world.isGoal(u):
+#                                 self.rhs_map[u[0]][u[1]] = self.getMinRhs(u)
+#                         self.updateVertex(u)
+                        
+#                         if(c_old > self.c(v, u)):
+#                             if not self.world.isGoal(v):
+#                                 self.rhs_map[v[0]][v[1]] = min(self.rhs(v), self.c(v, u)+self.g(u))
+#                         elif(self.rhs(v) == c_old + self.g(u)):
+#                             if not self.world.isGoal(v):
+#                                 self.rhs_map[v[0]][v[1]] = self.getMinRhs(v)
+#                         self.updateVertex(v)
+#             else:
+#                 pass
                         
         if len(self.newObstacles) > 0:
             self.km = self.km + self.h(self.previousIndex, index)
@@ -165,20 +195,20 @@ class DstarLite():
             self.computeShortestPath(index)
     
     def getPathToTake(self, robot_index):#今後の経路を描画
-        self.pathToTake = []
+        self.pathToTake = [robot_index]
         while not self.world.isGoal(robot_index):
             next_index = robot_index
             min_cost = float('inf')
             for grid in neigbor_grids:
                 s_dash = robot_index + grid
-                if self.world.isOutOfBounds(s_dash) or self.isObservedObstacle(s_dash):
+                if self.world.isOutOfBounds(s_dash) or self.isObservedObstacle(s_dash) or np.any(np.all(self.pathToTake==s_dash, axis=1)):
                     continue
-                if(min_cost >= self.c(robot_index, s_dash) + self.rhs(s_dash)):
+                if min_cost >= self.c(robot_index, s_dash) + self.rhs(s_dash):
                     min_cost = self.c(robot_index, s_dash) + self.rhs(s_dash)
                     next_index = s_dash
-            if(np.all(robot_index == next_index)):
-                break
             robot_index = next_index
+            if np.any(np.all(self.pathToTake==robot_index, axis=1)):
+                break
             self.pathToTake.append(robot_index)
     
     def computeShortestPath(self, index):
@@ -261,7 +291,7 @@ class DstarLite():
         if self.isObservedObstacle(index) or self.isObservedObstacle(neigbor_index):
             return float('inf')
         else:
-            return 1.41421356 if(np.all(np.abs(index - neigbor_index) == [1, 1])) else 1.0
+            return 1.41 if(np.all(np.abs(index - neigbor_index) == [1, 1])) else 1.0
 
     def h(self, s1, s2):
         return 1.0 * np.linalg.norm(s1 - s2)
@@ -271,13 +301,14 @@ class DstarLite():
         return list(u) in U_row
     
     def isUnobserved(self, index):
-        if self.metric_grid_map[index[0]][index[1]] == '-1':
+        if self.metric_grid_map[index[0]][index[1]] == -1:
             return True
         else:
             return False
     
     def isObservedObstacle(self, index):
-        if self.metric_grid_map[index[0]][index[1]] == '0':
+        #if self.metric_grid_map[index[0]][index[1]] == '0':
+        if self.metric_grid_map[index[0]][index[1]] > 0.3:
             return True
         else:
             return False
@@ -315,7 +346,7 @@ class DstarLite():
     def drawRobot(self, ax, elems):
         if not(self.world.isStart(self.currentIndex)) and not(self.world.isGoal(self.currentIndex)):
             self.world.drawGrid(self.currentIndex, "magenta", 0.5, ax) if(self.drawTakenPath_flag) else None
-        self.world.drawGrid(self.currentIndex, "blue", 1.0, ax, elems=elems)
+            self.world.drawGrid(self.currentIndex, "blue", 1.0, ax, elems=elems)
         
     def drawMetricMap(self, ax, elems):
         for index, grid in np.ndenumerate(self.metric_grid_map):
@@ -346,7 +377,8 @@ if __name__ == "__main__":
     cost_adj = 13   #map_2
     #cost_adj = 16   #map_3
     #cost_adj = 4    #map_large
-    world.append(DstarLite(world, cost_adj=cost_adj))
+    sensor = IdealSensor(world)
+    world.append(DstarLite(world, sensor, cost_adj=cost_adj))
     
     world.draw()
     #world.ani.save('dstarlite_map5.gif', writer='pillow', fps=100)    #アニメーション保存
