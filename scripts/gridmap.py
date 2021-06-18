@@ -10,6 +10,7 @@ import matplotlib.animation as anm
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
+import math
 import csv
 import tqdm
 import sys
@@ -165,8 +166,16 @@ class GridMapWorld():
             return True
         else:
             return False
-        
-    def resetStartAndGoal(self, start_index=None, goal_index=None, distance=100):
+    
+    def hasObstacle(self, index, gridsize):
+        ran = math.ceil((gridsize-1) / 2)
+        for i in range(-ran, ran+1):
+            for j in range(-ran, ran+1):
+                if self.isObstacle(index + [i, j]):
+                    return True
+        return False
+    
+    def resetStartAndGoal(self, start_index=None, goal_index=None, gridsize=1, distance=100):
         if np.any(self.start_index != None):
             self.grid_map[self.start_index[0]][self.start_index[1]] = '1'
         if np.any(self.goal_index != None):
@@ -174,7 +183,7 @@ class GridMapWorld():
         if np.any(start_index == None) or np.any(goal_index == None):
             self.start_index = np.array([random.randint(0, self.grid_num[0] - 1), random.randint(0, self.grid_num[1] - 1)])
             self.goal_index = np.array([random.randint(0, self.grid_num[0] - 1), random.randint(0, self.grid_num[1] - 1)])
-            while(self.isObstacle(self.start_index) or self.isObstacle(self.goal_index) or self.distance(self.start_index, self.goal_index) < distance):
+            while self.hasObstacle(self.start_index, gridsize) or self.hasObstacle(self.goal_index, gridsize) or self.distance(self.start_index, self.goal_index) < distance:
                 self.start_index = np.array([random.randint(0, self.grid_num[0] - 1), random.randint(0, self.grid_num[1] - 1)])
                 self.goal_index = np.array([random.randint(0, self.grid_num[0] - 1), random.randint(0, self.grid_num[1] - 1)])
         else:

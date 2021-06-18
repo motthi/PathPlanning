@@ -36,6 +36,8 @@ class IdealSensor():
                 continue;
             elif self.world.grid_map[u[0]][u[1]] == '0':
                 obstacle_grids.append([u, 1])
+            else:
+                obstacle_grids.append([u, 0])
         return obstacle_grids
     
     def plot(self, figsize=(4, 4), robot_index=np.array([10, 10]), save_path=None):
