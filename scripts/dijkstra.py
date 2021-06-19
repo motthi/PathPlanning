@@ -76,20 +76,20 @@ class Dijkstra(GridBasePathPlanning):
                 self.world.drawGrid(index, "green", 1.0, ax)
         
         for index in self.takenPath:
-            if (not self.world.isStart(index)) and (not self.world.isGoal(index)):
-                self.world.drawGrid(index, "red", 0.5, ax)
+            if not self.hasStart(index) and not self.hasGoal(index):
+                self.drawCostSizeGrid(index, "red", 0.5, ax)
         
         plt.show()
 
-        if(save_path is not None):
+        if save_path is not None:
             fig.savefig(save_path, bbox_inches='tight', pad_inches=0.1)
         return fig
     
     def run(self):
-        self.currentIndex = self.world.start_index
+        self.currentIndex = self.indexWorldToCost(self.world.start_index)
         self.calculatePath()
         self.getPath()
-        while not(self.world.isGoal(self.currentIndex)):
+        while not self.hasGoal(self.currentIndex):
             self.currentIndex = self.next(self.currentIndex)
             self.takenPath.append(self.currentIndex)
         
@@ -103,7 +103,7 @@ class Dijkstra(GridBasePathPlanning):
                 return None
             idx = np.where(np.all(self.resultPath==index, axis=1)==True)[0][0]
             if(idx == 0):
-                next_index = self.world.goal_index
+                next_index = self.indexWorldToCost(self.world.goal_index)
             else:
                 next_index = self.resultPath[idx-1]
         return next_index
@@ -144,7 +144,7 @@ class Dijkstra(GridBasePathPlanning):
         self.resultPath.append(self.indexWorldToCost(self.world.start_index))
     
     def calculatePath(self):
-        while not self.isClosed(self.world.goal_index):
+        while not self.isClosed(self.indexWorldToCost(self.world.goal_index)):
             _, _ = self.expandGrid()
     
     def listFreeNeigbor(self, index):
