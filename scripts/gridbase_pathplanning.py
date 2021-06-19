@@ -10,10 +10,6 @@ import matplotlib.animation as anm
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
-import math
-import csv
-import tqdm
-import sys
 import warnings
 
 

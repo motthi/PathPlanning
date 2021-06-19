@@ -6,7 +6,6 @@
 
 import sys
 sys.path.append("./scripts/")
-import math
 import numpy as np
 from gridmap import*
 from robot import*

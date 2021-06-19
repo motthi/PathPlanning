@@ -7,7 +7,6 @@
 import sys
 sys.path.append("../scripts/")
 from dijkstra import *
-import math
 from matplotlib.animation import PillowWriter    #アニメーション保存用
 
 
