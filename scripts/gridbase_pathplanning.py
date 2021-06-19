@@ -39,7 +39,7 @@ class GridBasePathPlanning():
             alpha=alpha,
             fill=fill
         )
-        if(elems is not None):
+        if elems is not None:
             elems.append(ax.add_patch(r))
         else:
             ax.add_patch(r)
@@ -73,6 +73,8 @@ class GridBasePathPlanning():
         return False
     
     def hasObstacle(self, index):
+        if np.any(index >= self.grid_cost_num) or np.any(index < [0, 0]):
+            return True
         index = self.indexCostToWorld(index)
         for i in range(self.grid_size_ratio):
             for j in range(self.grid_size_ratio):
