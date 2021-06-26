@@ -37,9 +37,9 @@ class DstarLite(GridBasePathPlanning):
         self.pp_algorithm_name = "DstarLite"
         
     def initialize(self):
-        self.local_map = np.full(self.world.grid_map.shape, -1, dtype=np.int8)    #センシングによって構築したマップ
+        self.local_map = np.full(self.world.grid_map.shape, -1.0, dtype=np.float)    #センシングによって構築したマップ
         self.local_map[self.world.start_index[0]][self.world.start_index[1]] = 0
-        self.metric_grid_map = np.full(self.grid_cost_num, -1, dtype=float)    #経路計画で使用するマップ
+        self.metric_grid_map = np.full(self.grid_cost_num, -1.0, dtype=np.float)    #経路計画で使用するマップ
         
         self.g_map = np.full(self.metric_grid_map.shape, float('inf'))
         self.rhs_map = np.full(self.metric_grid_map.shape, float('inf'))
@@ -146,7 +146,6 @@ class DstarLite(GridBasePathPlanning):
             else:
                 if occupancy < 1 - 1e-10:
                     self.local_map[u[0]][u[1]] = updateP(self.local_map[u[0]][u[1]], occupancy)
-            
             if self.local_map[u[0]][u[1]] > 0.3:
                 u_metric = self.indexWorldToCost(u)
                 self.newObstacles.append(u)
@@ -408,29 +407,29 @@ if __name__ == "__main__":
 
     grid_step = np.array([0.1, 0.1])
     grid_num = np.array([500, 500])
-    # grid_num = np.array([30, 30])
+    grid_num = np.array([30, 30])
 
-    map_data = "../csvmap/map_20.csv"
-    # map_data = "../csvmap/map2.csv"
+#     map_data = "../csvmap/map_20.csv"
+    map_data = "../csvmap/map2.csv"
 
     world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, time_show="time", debug=False, is_dynamic=True)
-    world.resetStartAndGoal(np.array([111, 49]), np.array([486, 474]), distance=500)
-    #print(world.start_index, world.goal_index)
+#     world.resetStartAndGoal(np.array([111, 49]), np.array([486, 474]), distance=500)
+    print(world.start_index, world.goal_index)
 
     cost_adj = 13   #map_2
     #cost_adj = 16   #map_3
     #cost_adj = 4    #map_large
-    sensor = IdealSensor(world, sensing_range=15)
-    pp = DstarLite(world, sensor, grid_size_ratio=5, cost_adj=5, drawCost_flag=False)
+    sensor = IdealSensor(world, sensing_range=5)
+    pp = DstarLite(world, sensor, grid_size_ratio=1, cost_adj=5, drawCost_flag=False)
     world.append(pp)
 
-    for i in range(5):
-        world.resetStartAndGoal(gridsize=15, distance=500)
-        print(world.start_index, world.goal_index, pp.hasObstacle(world.start_index), pp.hasObstacle(world.goal_index))
-        pp.run()
-        pp.plot(figsize=(8, 8))
-    # pp.initialize()
-    # world.draw(figsize=(8, 8))
+#     for i in range(5):
+#         world.resetStartAndGoal(gridsize=15, distance=500)
+#         print(world.start_index, world.goal_index, pp.hasObstacle(world.start_index), pp.hasObstacle(world.goal_index))
+#         pp.run()
+#         pp.plot(figsize=(8, 8))
+    pp.initialize()
+    world.draw(figsize=(8, 8))
     # world.ani.save('dstarlite_map5.gif', writer='pillow', fps=100)    #アニメーション保存
 
 
