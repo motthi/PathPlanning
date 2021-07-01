@@ -51,7 +51,6 @@ class BUG(GridBasePathPlanning):
             self.currentIndex = self.next(self.currentIndex)
             if not self.hasGoal(self.currentIndex):
                 self.drawCostSizeGrid(self.currentIndex, "red", 0.5, ax)
-            self.drawCostSizeGrid(np.array([8, 0]), "blue", 0.2, ax, elems=elems)
     
     def plot(self, figsize=(4, 4), color="red", save_path=None, drawMLine_flag=False):
         fig = plt.figure(figsize=figsize)
@@ -195,10 +194,6 @@ class BUG(GridBasePathPlanning):
             else:
                 next_index = index + [1, 0]
         elif np.all(dxy == [-1, 1]) or np.all(dxy == [0, 1]): # 障害物が下側または左下側の場合，右へ移動する
-            if np.all(index == [7, 0]):
-                print("Obstacle Check")
-                print(self.hasObstacle(index + [1, 0]))
-                print("Done")
             if not self.hasObstacle(index + [1, 0]):
                 next_index = index + [1, 0]
                 self.prev_obs = index + [0, -1]
@@ -210,8 +205,6 @@ class BUG(GridBasePathPlanning):
                 self.prev_obs = index + [0, 1]
             else:
                 next_index = index + [0, 1]
-            if np.all(index == [7, 0]):
-                print("AAAAAAAAAAAAA")
         return next_index
     
     def drawMLine(self, ax):

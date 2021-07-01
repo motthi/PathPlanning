@@ -63,7 +63,7 @@ class DstarLite(GridBasePathPlanning):
     
     def draw(self, ax, elems):
         if self.g(self.currentIndex) == float('inf'):
-            warnings.warn("Path does not exist")
+            raise PathNotFoundError("Path was not found")
             return
         
         # Check New Obstacle -> Move to Next Index
@@ -406,15 +406,11 @@ if __name__ == "__main__":
     time_interval = 0.1
 
     grid_step = np.array([0.1, 0.1])
-    grid_num = np.array([500, 500])
     grid_num = np.array([30, 30])
 
-#     map_data = "../csvmap/map_20.csv"
     map_data = "../csvmap/map2.csv"
 
     world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, time_show="time", debug=False, is_dynamic=True)
-#     world.resetStartAndGoal(np.array([111, 49]), np.array([486, 474]), distance=500)
-    print(world.start_index, world.goal_index)
 
     cost_adj = 13   #map_2
     #cost_adj = 16   #map_3
@@ -422,12 +418,7 @@ if __name__ == "__main__":
     sensor = IdealSensor(world, sensing_range=5)
     pp = DstarLite(world, sensor, grid_size_ratio=1, cost_adj=5, drawCost_flag=False)
     world.append(pp)
-
-#     for i in range(5):
-#         world.resetStartAndGoal(gridsize=15, distance=500)
-#         print(world.start_index, world.goal_index, pp.hasObstacle(world.start_index), pp.hasObstacle(world.goal_index))
-#         pp.run()
-#         pp.plot(figsize=(8, 8))
+    
     pp.initialize()
     world.draw(figsize=(8, 8))
     # world.ani.save('dstarlite_map5.gif', writer='pillow', fps=100)    #アニメーション保存

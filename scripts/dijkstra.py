@@ -109,6 +109,8 @@ class Dijkstra(GridBasePathPlanning):
         return next_index
     
     def expandGrid(self):
+        if len(self.open_list) == 0:
+            raise PathNotFoundError("Path was not found")
         val = np.argmin(self.open_list, axis=0) #評価マップの中から最も小さいもの抽出
         grid_id, cost_f, cost_g = self.open_list[val[1]]
         index = np.array([np.where(self.id_map==grid_id)[0][0], np.where(self.id_map==grid_id)[1][0]])
@@ -174,14 +176,12 @@ class Dijkstra(GridBasePathPlanning):
         return np.linalg.norm(u - v)
     
     def drawCost(self, index, cost_f, ax, elems, cost_adj1=15.0, cost_adj2=2.0):
-        #コストの描画
         if not self.hasStart(index) and not self.hasGoal(index):
             c = "blue"
             fill = False
             alpha = 1.0
             
             c_num = int(cost_adj1 * (cost_f - cost_adj2)) #Black→Blue
-            
             if c_num > 0xff: #Blue → Cyan
                 c_num = (c_num-0xff)*16*16 + 0xff
                 if c_num > 0xffff: #Cyan → Green

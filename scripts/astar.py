@@ -32,6 +32,8 @@ class Astar(Dijkstra):
                 self.drawedTakenPath_flag = True
                 
     def expandGrid(self):
+        if len(self.open_list) == 0:
+            raise PathNotFoundError("Path was not found")
         val = np.argmin(self.open_list, axis=0) #評価マップの中から最も小さいもの抽出
         grid_id, cost_f, cost_g = self.open_list[val[1]]
         index = np.array([np.where(self.id_map==grid_id)[0][0], np.where(self.id_map==grid_id)[1][0]])
