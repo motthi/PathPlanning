@@ -59,7 +59,7 @@ class Astar(Dijkstra):
                     continue
             self.parent_id_map[n[0]][n[1]] = self.id(index)
             self.open_list.append([self.id(n), evaluation_f, evaluation_f - self.h(n)])
-
+    
     def h(self, u):
         return 0.9 * np.linalg.norm(self.indexWorldToCost(self.world.goal_index) - u)
 
@@ -84,10 +84,4 @@ if __name__ == "__main__":
     
     world.draw()
     #world.ani.save('astar_map1.gif', writer='pillow', fps=100)    #アニメーション保存
-
-
-# In[ ]:
-
-
-
 

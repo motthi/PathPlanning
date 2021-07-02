@@ -153,9 +153,21 @@ class Dijkstra(GridBasePathPlanning):
         neigbor_indice = []
         for neigbor_grid in neigbor_grids:
             neigbor_index = index + neigbor_grid
-            if not self.isCostGridOutOfBounds(neigbor_index) and not self.hasObstacle(neigbor_index):
+            if not self.isCostGridOutOfBounds(neigbor_index) and not self.hasObstacle(neigbor_index) and not self.hasObstacleDiagonal(index, neigbor_index):
                 neigbor_indice.append(neigbor_index)
         return neigbor_indice
+    
+    def hasObstacleDiagonal(self, index1, index2):
+        v = index2 - index1
+        if not np.all(np.abs(v) == [1, 1]):
+            return False
+        else:
+            if self.hasObstacle(index1 + [v[0], 0]):
+                return True
+            elif self.hasObstacle(index1 + [0, v[1]]):
+                return True
+            else:
+                return False
     
     def isOpened(self, u):
         return self.id(u) in [val[0] for val in self.open_list]

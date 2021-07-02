@@ -179,8 +179,8 @@ class PathFollower(Robot):
         if self.flag_chng_index == True:
             self.way_point = next_index
         
-        control_inputs = self.controlInputCandidate()
-        path_candidates = self.pathCandidate(control_inputs)
+        #control_inputs = self.controlInputCandidate()
+        #path_candidates = self.pathCandidate(control_inputs)
         d_theta = np.arctan2(self.costIndexToPose(next_index)[1] - pose[1], self.costIndexToPose(next_index)[0] - pose[0]) - pose[2]
         while d_theta > np.pi:
             d_theta -= 2*np.pi
