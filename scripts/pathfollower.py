@@ -15,6 +15,7 @@ from dstarlite import*
 from bug import*
 from sensor import*
 from dijkstra import PathNotCalculatedError
+from math import exp
 from matplotlib.animation import PillowWriter    #アニメーション保存用
 
 
@@ -69,11 +70,27 @@ class PathFollower(Robot):
         self.drawWayPoint_flag = drawWayPoint_flag
         self.drawMetricMap_flag = drawMetricMap_flag
     
+    def draw(self, ax, elems):
+        self.drawRobot(self.pose, ax, elems)
+        self.drawTakenPath(self.poses, ax, elems, linewidth=1.0, label=self.pp_algorithm.pp_algorithm_name)
+        
+        if self.isRobotInGoal(self.pose):
+            pass
+        elif self.isRobotInWorldObstacle(self.pose):
+            self.drawCostSizeGrid(self.poseToCostIndex(self.pose), "red", 0.5, ax, elems=elems)
+        else:
+            self.pose = self.next(self.pose)
+            self.poses.append(self.pose)
+            self.drawCostSizeGrid(self.way_point, "blue", 0.5, ax, elems=elems)  if self.drawWayPoint_flag else None
+            if hasattr(self.pp_algorithm, "checkNewObstacle"):
+                self.pp_algorithm.drawNewObstacles(ax, elems) if not self.pp_algorithm.drawMetricMap_flag else None
+            ax.legend(fontsize=15, framealpha=1.0, loc="upper right")
+    
     def run(self):
         d_pose = self.world.goal_index - self.world.start_index
         theta = np.arctan2(d_pose[1], d_pose[0])
         self.pose = np.append(self.world.start_index * self.world.grid_step + self.world.grid_step / 2, theta)
-        while not self.isRobotInGoal(self.pose) and not self.isRobotInObstacle(self.pose):
+        while not self.isRobotInCostGoal(self.pose) and not self.isRobotInWorldObstacle(self.pose):
             self.pose = self.next(self.pose)
             self.poses.append(self.pose)
             chk_interval = 30
@@ -83,7 +100,6 @@ class PathFollower(Robot):
                     distance += np.abs(np.linalg.norm(self.poses[i-chk_interval][0:2] - self.poses[i-chk_interval-1][0:2]))
                 if distance < np.linalg.norm(self.world.grid_step) * 1.0:
                     break
-        print(self.isRobotInGoal(self.pose), self.isRobotInObstacle(self.pose))
     
     def plot(self, figsize=(4, 4), color="red", save_path=None):
         fig = plt.figure(figsize=figsize)
@@ -110,22 +126,9 @@ class PathFollower(Robot):
         if(save_path is not None):
             fig.savefig(save_path, bbox_inches='tight', pad_inches=0.1)
         return fig
-        
-    def draw(self, ax, elems):
-        self.drawRobot(self.pose, ax, elems)
-        self.drawTakenPath(self.poses, ax, elems, linewidth=1.0, label=self.pp_algorithm.pp_algorithm_name)
-        if self.isRobotInGoal(self.pose) and not self.isRobotInObstacle(self.pose):
-            return
-        
-        self.pose = self.next(self.pose)
-        self.poses.append(self.pose)
-        self.drawCostSizeGrid(self.way_point, "blue", 0.5, ax, elems=elems)  if self.drawWayPoint_flag else None
-        if hasattr(self.pp_algorithm, "checkNewObstacle"):
-            self.pp_algorithm.drawNewObstacles(ax, elems) if not self.pp_algorithm.drawMetricMap_flag else None
-        ax.legend(fontsize=15, framealpha=1.0, loc="upper right")
     
     def next(self, pose):
-        index = self.poseToIndex(pose)
+        index = self.poseToCostIndex(pose)
         next_index = index
         
         if hasattr(self.pp_algorithm, "checkNewObstacle"):
@@ -133,7 +136,7 @@ class PathFollower(Robot):
         
         if self.flag_chng_index == True:
             prev_next = next_index
-            while np.linalg.norm(self.pose[0:2] - self.indexToPose(next_index)[0:2]) < np.linalg.norm(self.grid_step)*0.5:
+            while np.linalg.norm(self.pose[0:2] - self.costIndexToPose(next_index)[0:2]) < np.linalg.norm(self.grid_step)*0.5:
                 try:
                     next_index = self.pp_algorithm.next(next_index)
                 except PathNotCalculatedError:
@@ -178,7 +181,7 @@ class PathFollower(Robot):
         
         control_inputs = self.controlInputCandidate()
         path_candidates = self.pathCandidate(control_inputs)
-        d_theta = np.arctan2(self.indexToPose(next_index)[1] - pose[1], self.indexToPose(next_index)[0] - pose[0]) - pose[2]
+        d_theta = np.arctan2(self.costIndexToPose(next_index)[1] - pose[1], self.costIndexToPose(next_index)[0] - pose[0]) - pose[2]
         while d_theta > np.pi:
             d_theta -= 2*np.pi
         while d_theta < -np.pi:
@@ -188,10 +191,11 @@ class PathFollower(Robot):
         elif d_theta > np.pi/6:
             nu, omega = 0.0, 320*np.pi/180
         else:
-            nu, omega = self.selectPath(path_candidates, goalH=0.01)
+            nu, omega = self.nu_max * exp(-d_theta), d_theta * 5
+            #nu, omega = self.selectPath(path_candidates, goalH=0.01)
         next_pose = self.state_transition(nu, omega, self.world.time_interval, pose)
         
-        if np.linalg.norm(next_pose[0:2] - self.indexToPose(next_index)[0:2]) > np.linalg.norm(self.grid_step)/4:
+        if np.linalg.norm(next_pose[0:2] - self.costIndexToPose(next_index)[0:2]) > np.linalg.norm(self.grid_step)/4:
             self.flag_chng_index = False
         else:
             self.flag_chng_index = True
@@ -276,28 +280,54 @@ class PathFollower(Robot):
     def indexCostToWorld(self, index):
         return np.array(index) * self.grid_size_ratio
     
-    def poseToIndex(self, pose):
+    def poseToCostIndex(self, pose):
         return (np.array(pose[0:2]) // self.grid_step).astype(np.int32)
     
-    def indexToPose(self, index):
+    def costIndexToPose(self, index):
         return np.append(index * self.grid_step + self.grid_step / 2, 0.0)
     
-    def isRobotInGoal(self, pose):
-        if np.linalg.norm(self.goal_index - self.poseToIndex(pose)) < 0.5:
+    def worldIndexToPose(self, index):
+        return np.append(index * self.world.grid_step + self.world.grid_step / 2, 0.0)
+    
+    def isRobotInCostGoal(self, pose):
+        index = self.poseToCostIndex(pose)
+        if np.all(index == self.goal_index):
             return True
         else:
             return False
     
-    def isRobotInObstacle(self, pose):
-        index = self.poseToIndex(pose)
+    def isRobotInWorldObstacle(self, pose):
+        index = self.poseToCostIndex(pose)
         index = self.indexCostToWorld(index)
         if self.world.isObstacle(index):
             return True
         for grid in neigbor_grids:
             neigbor_index = index + grid
             if self.world.isObstacle(neigbor_index):
-                neigbor_pose = self.indexToPose(neigbor_index)
+                neigbor_pose = self.worldIndexToPose(neigbor_index)
                 dis_pose = np.abs(neigbor_pose - pose)[0:2] - self.world.grid_step / 2
+                if np.all(grid == [1, 0]) or np.all(grid == [-1, 0]):
+                    dis = dis_pose[0]
+                elif np.all(grid == [0, 1]) or np.all(grid == [0, -1]):
+                    dis = dis_pose[1]
+                elif np.all(grid == [1, 1]) or np.all(grid == [-1, -1]) or np.all(grid == [1, -1]) or np.all(grid == [-1, 1]):
+                    if dis_pose[0] < self.r and dis_pose[1] < self.r:
+                        return True
+                    else:
+                        continue
+                if dis < self.r:
+                    return True
+        return False
+    
+    def isRobotInCostObstacle(self, pose):
+        index = self.poseToCostIndex(pose)
+        if self.hasObstacle(index):
+            return True
+        for grid in neigbor_grids:
+            neigbor_index = index + grid
+            if self.hasObstacle(neigbor_index):
+                neigbor_pose = self.costIndexToPose(neigbor_index)
+                dis_pose = np.abs(neigbor_pose - pose)[0:2] - self.grid_step / 2
                 if np.all(grid == [1, 0]) or np.all(grid == [-1, 0]):
                     dis = dis_pose[0]
                 elif np.all(grid == [0, 1]) or np.all(grid == [0, -1]):
@@ -359,7 +389,7 @@ class PathFollower(Robot):
             ax.add_patch(r)
 
 
-# In[8]:
+# In[3]:
 
 
 class BugFollower(PathFollower):
@@ -367,7 +397,7 @@ class BugFollower(PathFollower):
         self, world, grid_size_ratio=1, r=0.02,
         noise_per_meter=5, noise_std=np.pi/60, bias_rate_stds=(0.0, 0.0),
         robot_color="black", path_color="red",
-        drawWayPoint_flag=False, drawMLine_flag=False  
+        drawWayPoint_flag=False, drawMLine_flag=False
     ):
         super().__init__(
             world, BUG(world, grid_size_ratio), robot_color=robot_color, path_color=path_color, r=r,
@@ -389,8 +419,10 @@ class BugFollower(PathFollower):
         d_pose = self.goal_index - self.start_index
         theta = np.arctan2(d_pose[1], d_pose[0])
         self.pose = np.append(self.start_index * self.grid_step + self.grid_step / 2, theta)
+        self.poses = [self.pose]
         self.getMLine()
         self.mLine_min = float('inf')
+        self.taken_mLine = [self.start_index]
         self.flag_chng_index = False
         self.way_point = self.goal_index
     
@@ -429,40 +461,46 @@ class BugFollower(PathFollower):
         cnt = 0
         if len(self.m_line) == 0:
             self.initialize()
-            self.drawMLine(ax) if(self.drawMLine_flag is True) else None
-        while not self.isRobotInObstacle(self.pose) and not self.isRobotInGoal(self.pose) and cnt < 20000:
+        while not self.isRobotInWorldObstacle(self.pose) and not self.isRobotInCostGoal(self.pose):
             self.pose = self.next(self.pose)
             self.poses.append(self.pose)
-            cnt += 1
+            chk_interval = 30
+            if len(self.poses) > chk_interval+1:
+                distance = 0.0
+                for i in range(chk_interval):
+                    distance += np.abs(np.linalg.norm(self.poses[i-chk_interval][0:2] - self.poses[i-chk_interval-1][0:2]))
+                if distance < np.linalg.norm(self.world.grid_step) * 1.0:
+                    break
     
     def draw(self, ax, elems):
         self.drawRobot(self.pose, ax, elems)
         self.drawTakenPath(self.poses, ax, elems, linewidth=1.0, label="BUG")
+        
         if len(self.m_line) == 0:
             self.initialize()
             self.drawMLine(ax) if(self.drawMLine_flag is True) else None
-        if self.isRobotInObstacle(self.pose):
+            
+        if self.isRobotInCostGoal(self.pose):
             pass
-        elif self.isRobotInGoal(self.pose):
-            pass
+        elif self.isRobotInWorldObstacle(self.pose):
+            self.drawCostSizeGrid(self.poseToCostIndex(self.pose), "red", 0.5, ax, elems=elems)
         else:
             self.pose = self.next(self.pose)
-        self.poses.append(self.pose)
-        self.drawCostSizeGrid(self.way_point, "blue", 0.5, ax, elems=elems) if self.drawWayPoint_flag else None
+            self.poses.append(self.pose)
+            self.drawCostSizeGrid(self.way_point, "blue", 0.5, ax, elems=elems) if self.drawWayPoint_flag else None
         ax.legend(fontsize=15, framealpha=1.0, loc="upper right")
     
     def next(self, pose):
-        index = self.poseToIndex(pose)
+        index = self.poseToCostIndex(pose)
         next_pose = None
-        next_chk_pose = None
         
-        if(len(self.m_line) == 0):
+        if len(self.m_line) == 0:
             raise PathNotCalculatedError("Path did not calculate")
         
         # 過去に通過したM-Lineよりも近いM-Lineにに到達した場合
-        if np.any(np.all(self.m_line == index, axis=1)) and np.linalg.norm(self.indexToPose(self.goal_index)[0:2] - pose[0:2]) < self.mLine_min:
+        if np.any(np.all(self.m_line == index, axis=1)) and not np.any(np.all(self.taken_mLine == index, axis=1)) and np.linalg.norm(self.costIndexToPose(self.goal_index)[0:2] - pose[0:2]) <= self.mLine_min+1e-3:
             self.alongObstacle = False
-            self.mLine_min = np.linalg.norm(self.indexToPose(self.goal_index)[0:2] - pose[0:2])
+            self.taken_mLine.append(index)
         
         # 前回，障害物がなかった場合
         if self.alongObstacle is False:
@@ -477,24 +515,21 @@ class BugFollower(PathFollower):
                 d_theta -= 2*np.pi
             while d_theta < -np.pi:
                 d_theta += 2*np.pi
-            if d_theta < -np.pi/9:
-                nu, omega = 0.0, -320*np.pi/180
-            elif d_theta > np.pi/9:
-                nu, omega = 0.0, 320*np.pi/180
-            elif d_theta < -np.pi/6:
+            if d_theta < -np.pi/6:
                 nu, omega = 0.1, -320*np.pi / 180
             elif d_theta > np.pi/6:
                 nu, omega = 0.1, 320*np.pi / 180
             else:
-                nu, omega = self.nu_max, d_theta*25
-                
+                nu, omega = self.nu_max * exp(-d_theta), d_theta * 5
             next_pose = self.state_transition(nu, omega, self.time_interval, pose)
-            if self.isRobotInObstacle(next_pose):
-                chk_index = self.poseToIndex(next_pose)
+            
+            # ゴールに直線的に移動中に障害物に衝突した場合，way pointを変更
+            if self.isRobotInCostObstacle(next_pose):
+                chk_index = self.poseToCostIndex(next_pose)
                 for grid in neigbor_grids:
                     neigbor_index = chk_index + grid
                     if self.hasObstacle(neigbor_index):
-                        neigbor_pose = self.indexToPose(neigbor_index)
+                        neigbor_pose = self.costIndexToPose(neigbor_index)
                         dis_pose = np.abs(neigbor_pose - next_pose)[0:2] - self.grid_step / 2
                         if np.all(grid == [1, 0]) or np.all(grid == [-1, 0]):
                             dis = dis_pose[0]
@@ -519,17 +554,18 @@ class BugFollower(PathFollower):
                     d_theta -= 2*np.pi
                 while d_theta < -np.pi:
                     d_theta += 2*np.pi
-                if d_theta < -np.pi/3:
+                if d_theta < -np.pi/6:
                     nu, omega = 0.0, -320*np.pi/180
-                elif d_theta > np.pi/3:
+                elif d_theta > np.pi/6:
                     nu, omega = 0.0, 320*np.pi/180
                 else:
-                    control_inputs = self.controlInputCandidate()
-                    path_candidates = self.pathCandidate(control_inputs)
-                    nu, omega = self.selectPath(path_candidates, speed=10.0, goalH=0.00, goalD=1.0)
+                    nu, omega = self.nu_max * exp(-d_theta), d_theta * 5
+                    #control_inputs = self.controlInputCandidate()
+                    #path_candidates = self.pathCandidate(control_inputs)
+                    #nu, omega = self.selectPath(path_candidates, speed=10.0, goalH=0.00, goalD=1.0)
                 next_pose = self.state_transition(nu, omega, self.time_interval, pose)
             else:
-                self.mLine_min = np.linalg.norm(self.indexToPose(self.goal_index)[0:2] - pose[0:2])
+                self.mLine_min = np.linalg.norm(self.costIndexToPose(self.goal_index)[0:2] - pose[0:2])
             self.v = index - next_index
             return next_pose
         
@@ -540,28 +576,30 @@ class BugFollower(PathFollower):
                 next_index = self.prev_obs - self.v
                 if np.all(np.abs(next_index - index) == [1, 1]):
                     next_index = index - self.v
+                if self.hasObstacle(next_index):
+                    next_index = self.moveCW(index, next_index)
             self.v = index - next_index
             self.way_point = next_index
         else:
             next_index = self.way_point
         
-        d_theta = np.arctan2(self.indexToPose(next_index)[1] - pose[1], self.indexToPose(next_index)[0] - pose[0]) - pose[2]
+        d_theta = np.arctan2(self.costIndexToPose(next_index)[1] - pose[1], self.costIndexToPose(next_index)[0] - pose[0]) - pose[2]
         while d_theta > np.pi:
             d_theta -= 2*np.pi
         while d_theta < -np.pi:
             d_theta += 2*np.pi
         if d_theta < -np.pi/6:
-            nu, omega = 0.0, -2*np.pi
+            nu, omega = 0.0, -320*np.pi/180
         elif d_theta > np.pi/6:
-            nu, omega = 0.0, 2*np.pi
+            nu, omega = 0.0, 320*np.pi/180
         else:
-            #nu, omega = self.nu_max, d_theta*5
-            control_inputs = self.controlInputCandidate()
-            path_candidates = self.pathCandidate(control_inputs)
-            nu, omega = self.selectPath(path_candidates, speed=10.0, goalH=0.0001, goalD=1.0)
+            nu, omega = self.nu_max * exp(-d_theta), d_theta * 5
+            #control_inputs = self.controlInputCandidate()
+            #path_candidates = self.pathCandidate(control_inputs)
+            #nu, omega = self.selectPath(path_candidates, speed=10.0, goalH=0.0001, goalD=1.0)
         next_pose = self.state_transition(nu, omega, self.time_interval, pose)
         
-        if np.linalg.norm(next_pose[0:2] - self.indexToPose(next_index)[0:2]) > np.linalg.norm(self.grid_step)/4:
+        if np.linalg.norm(next_pose[0:2] - self.costIndexToPose(next_index)[0:2]) > np.linalg.norm(self.grid_step)/4:
             self.flag_chng_index = False
         else:
             self.flag_chng_index = True
@@ -603,12 +641,13 @@ class BugFollower(PathFollower):
         theta = np.arctan2(g[1] - s[1], g[0] - s[0])
         self.m_line = np.array([s])
         distance = 0.0
-        while distance <= np.linalg.norm(self.indexToPose(s)[0:2] - self.indexToPose(g)[0:2]):
-            distance += np.linalg.norm(self.grid_step)*0.5
-            pos = self.indexToPose(s)[0:2] + np.array([np.cos(theta), np.sin(theta)])*distance
-            index = self.poseToIndex(pos)
+        index = s
+        while not np.all(index == self.goal_index):
+            distance += np.linalg.norm(self.grid_step) * 0.25
+            pos = self.costIndexToPose(s)[0:2] + np.array([np.cos(theta), np.sin(theta)]) * distance
+            index = self.poseToCostIndex(pos)
             if not np.any([np.all(index == grid) for grid in self.m_line]):
-                self.m_line = np.append(self.m_line, self.poseToIndex(pos).reshape(1, 2), axis=0)
+                self.m_line = np.append(self.m_line, self.poseToCostIndex(pos).reshape(1, 2), axis=0)
     
     def moveCW(self, index, next_chk_index):# 左回りになるように移動
         dxy = index - next_chk_index
@@ -662,35 +701,13 @@ class BugFollower(PathFollower):
                 next_index = index + [0, 1]
         return next_index
     
-    def isRobotInObstacle(self, pose):
-        index = self.poseToIndex(pose)
-        if self.hasObstacle(index):
-            return True
-        for grid in neigbor_grids:
-            neigbor_index = index + grid
-            if self.hasObstacle(neigbor_index):
-                neigbor_pose = self.indexToPose(neigbor_index)
-                dis_pose = np.abs(neigbor_pose - pose)[0:2] - self.grid_step / 2
-                if np.all(grid == [1, 0]) or np.all(grid == [-1, 0]):
-                    dis = dis_pose[0]
-                elif np.all(grid == [0, 1]) or np.all(grid == [0, -1]):
-                    dis = dis_pose[1]
-                elif np.all(grid == [1, 1]) or np.all(grid == [-1, -1]) or np.all(grid == [1, -1]) or np.all(grid == [-1, 1]):
-                    if dis_pose[0] < self.r and dis_pose[1] < self.r:
-                        return True
-                    else:
-                        continue
-                if dis < self.r:
-                    return True
-        return False
-    
     def drawMLine(self, ax):
         for line in self.m_line:
             if not(self.hasStart(line) or self.hasGoal(line)):
                 self.drawCostSizeGrid(line, "lime", 0.5, ax)
 
 
-# In[9]:
+# In[4]:
 
 
 if __name__ == "__main__":
@@ -705,41 +722,18 @@ if __name__ == "__main__":
     world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, time_show="time", debug=False, is_dynamic=False)
     print(world.start_index, world.goal_index)
     
-    pp_algorithm = Astar(world, grid_size_ratio=2)
-    world.append(PathFollower(world, pp_algorithm, r=0.04, path_color="red", drawWayPoint_flag=False))
+    pp_algorithm = Astar(world, grid_size_ratio=1)
+    world.append(PathFollower(world, pp_algorithm, r=0.03, path_color="red", drawWayPoint_flag=False))
     
-    pp_algorithm = DstarLite(world, IdealSensor(world, sensing_range=5), grid_size_ratio=2, drawLocalMap_flag=False)
+    pp_algorithm = DstarLite(world, IdealSensor(world, sensing_range=5), grid_size_ratio=1, drawLocalMap_flag=False)
     pp_algorithm.initialize()
-    world.append(PathFollower(world, pp_algorithm, r=0.04, path_color="blue"))
+    world.append(PathFollower(world, pp_algorithm, r=0.03, path_color="blue"))
     
-    bug_follower = BugFollower(world, grid_size_ratio=2, r=0.04, path_color="green", drawWayPoint_flag=False)
+    bug_follower = BugFollower(world, grid_size_ratio=1, r=0.03, path_color="green", drawWayPoint_flag=False, drawMLine_flag=False)
     world.append(bug_follower)
     
-    #world.draw(figsize=(8, 8))
+    world.draw(figsize=(8, 8))
     #world.ani.save('path_45_compare3.gif', writer='ffmpeg', fps=100)    #アニメーション保存
-
-
-# In[5]:
-
-
-# time_span = 80
-# time_interval = 0.1
-
-# grid_step = np.array([0.1, 0.1])
-# grid_num = np.array([100, 100])
-
-# map_data = "./csvmap/mr/map_45.csv"
-# map_data = "./csvmap/map3.csv"
-
-# world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, time_show="time", debug=False, is_dynamic=False)
-# for i in range(10):
-#     world.resetStartAndGoal()
-#     print(world.start_index, world.goal_index, end="")
-#     path_follower = BugFollower(world, path_color="green")
-#     #path_follower = PathFollower(world, Astar(world))
-#     #path_follower = PathFollower(world, DstarLite(world))
-#     path_follower.run()
-#     path_follower.plot()
 
 
 # In[ ]:
