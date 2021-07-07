@@ -13,7 +13,7 @@ from robot import*
 from matplotlib.animation import PillowWriter    #アニメーション保存用
 
 
-# In[6]:
+# In[2]:
 
 
 class DWA(Robot):
@@ -29,6 +29,9 @@ class DWA(Robot):
             expected_kidnap_time=1e1000, kidnap_range_x = (0.0,0.0), kidnap_range_y = (0.0,0.0)
         )
         self.world = world
+        self.time = 0
+        self.time_interval = self.world.time_interval
+        
         self.grid_size_ratio = grid_size_ratio
         self.grid_cost_num = self.world.grid_num / self.grid_size_ratio
         self.grid_step = self.world.grid_step * self.grid_size_ratio
@@ -48,7 +51,6 @@ class DWA(Robot):
         self.omega_max = 100*np.pi / 180
         self.omega_delta = 5*np.pi/180
         
-        self.time_interval = self.world.time_interval
         self.nu = 0.0
         self.omega = 0.0
         
@@ -59,7 +61,7 @@ class DWA(Robot):
         self.nu = 0.0
         self.omega = 0.0
         self.pose = np.append(self.world.start_index * self.world.grid_step + self.world.grid_step / 2, 0.0)
-        self.poses = self.pose
+        self.poses = [self.pose]
     
     def draw(self, ax, elems):
         self.drawRobot(self.pose, ax, elems)
@@ -85,16 +87,29 @@ class DWA(Robot):
     
     def run(self):
         self.initialize()
-        while not self.isRobotInCostGoal(self.pose) and not self.isRobotInWorldObstacle:
+        cnt = 0
+        chk_counter = 10
+        idx_history = [list(self.poseToCostIndex(self.pose))]
+        while not self.isRobotInCostGoal(self.pose) and not self.isRobotInWorldObstacle(self.pose):
+            current_index = self.poseToCostIndex(self.pose)
             self.pose = self.next(self.pose)
             self.poses.append(self.pose)
+            cnt += 1
+            
+            next_index = self.poseToCostIndex(self.pose)
+            if not np.all(current_index == next_index):
+                current_index = next_index
+                idx_history.append(list(current_index))
+                if idx_history.count(list(current_index)) > chk_counter:
+                    break
+        self.time = self.time_interval * cnt
     
     def next(self, pose):
         control_inputs = self.controlInputCandidate()
         path_candidates = self.pathCandidate(control_inputs)
         self.nu, self.omega = self.selectPath(path_candidates)
-        self.nu, self.omega = self.considerUncertainty(self.nu, self.omega, self.world.time_interval)
-        next_pose = self.state_transition(self.nu, self.omega, self.world.time_interval, self.pose)
+        self.nu, self.omega = self.calculateUncertainty(self.nu, self.omega, self.time_interval)
+        next_pose = self.state_transition(self.nu, self.omega, self.time_interval, self.pose)
         return next_pose
     
     def plot(self, figsize=(4, 4), save_path=None):
@@ -116,7 +131,7 @@ class DWA(Robot):
                 self.world.drawGrid(index, "green", 1.0, ax)
                 
         #Path
-        ax.plot([e[0] for e in self.poses], [e[1] for e in self.poses], linewidth=0.5, color="black")
+        self.drawTakenPath(self.poses, ax, linewidth=1.0, label="DWA")
         plt.show()
 
         if(save_path is not None):
@@ -153,7 +168,7 @@ class DWA(Robot):
         select_nu, select_omega = 0.0, 0.0
         for path in path_candidates:
             x, y, theta, nu, omega = path[-1]
-            c = 0.1*self.costObstacle([x, y, theta]) + 20 * self.costSpeed(nu) + 50*self.costGoalDistance([x, y, theta])
+            c = 0.3*self.costObstacle([x, y, theta]) + 20 * self.costSpeed(nu) + 50*self.costGoalDistance([x, y, theta])
             if(c < cost):
                 cost = c
                 select_nu, select_omega = nu, omega
@@ -278,7 +293,7 @@ class DWA(Robot):
             xs, ys, thetas = xf, yf, thetaf
 
 
-# In[7]:
+# In[3]:
 
 
 if __name__ == "__main__":
@@ -291,8 +306,8 @@ if __name__ == "__main__":
     map_data = "./csvmap/map4.csv"
 
     world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, time_show="time", debug=False)
-    #world.append(DWA(world, color="red", r=0.05, noise_per_meter=10, noise_std=np.pi/30))
-    world.append(DWA(world, r=0.08, grid_size_ratio=2, noise_per_meter=0, noise_std=0.0))
+    world.append(DWA(world, r=0.04, color="red", noise_per_meter=10, noise_std=np.pi/30))
+    world.append(DWA(world, r=0.04, grid_size_ratio=1, noise_per_meter=0, noise_std=0.0))
     
     world.draw()
     #world.ani.save('dwa_map7.gif', writer='ffmpeg', fps=100)    #アニメーション保存

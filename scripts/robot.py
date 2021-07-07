@@ -113,9 +113,9 @@ class IdealRobot:
     
     def drawTakenPath(self, poses, ax, elems=None, linewidth=0.5, label=None):
         if elems is None:
-            ax.plot([e[0] for e in self.poses], [e[1] for e in poses], linewidth=linewidth, color=self.path_color, label=label)
+            ax.plot([e[0] for e in poses], [e[1] for e in poses], linewidth=linewidth, color=self.path_color, label=label)
         else:
-            elems += ax.plot([e[0] for e in self.poses], [e[1] for e in poses], linewidth=linewidth, color=self.path_color, label=label)
+            elems += ax.plot([e[0] for e in poses], [e[1] for e in poses], linewidth=linewidth, color=self.path_color, label=label)
 
 
 # In[3]:

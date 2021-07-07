@@ -35,6 +35,7 @@ class PathFollower(Robot):
             expected_kidnap_time=1e1000, kidnap_range_x = (0.0,0.0), kidnap_range_y = (0.0,0.0)
         )
         self.world = world
+        self.time = 0
         self.time_interval = self.world.time_interval
         self.pp_algorithm = pp_algorithm
         self.grid_size_ratio = self.pp_algorithm.grid_size_ratio
@@ -87,19 +88,23 @@ class PathFollower(Robot):
             ax.legend(fontsize=15, framealpha=1.0, loc="upper right")
     
     def run(self):
+        cnt = 0
         d_pose = self.world.goal_index - self.world.start_index
         theta = np.arctan2(d_pose[1], d_pose[0])
         self.pose = np.append(self.world.start_index * self.world.grid_step + self.world.grid_step / 2, theta)
+        chk_counter = 10
         while not self.isRobotInCostGoal(self.pose) and not self.isRobotInWorldObstacle(self.pose):
             self.pose = self.next(self.pose)
             self.poses.append(self.pose)
-            chk_interval = 30
-            if len(self.poses) > chk_interval+1:
-                distance = 0.0
-                for i in range(chk_interval):
-                    distance += np.abs(np.linalg.norm(self.poses[i-chk_interval][0:2] - self.poses[i-chk_interval-1][0:2]))
-                if distance < np.linalg.norm(self.world.grid_step) * 1.0:
+            cnt += 1
+            
+            next_index = self.poseToCostIndex(self.pose)
+            if not np.all(current_index == next_index):
+                current_index = next_index
+                idx_history.append(list(current_index))
+                if idx_history.count(list(current_index)) > chk_counter:
                     break
+        self.time = self.time_interval * cnt
     
     def plot(self, figsize=(4, 4), color="red", save_path=None):
         fig = plt.figure(figsize=figsize)
@@ -459,18 +464,22 @@ class BugFollower(PathFollower):
     
     def run(self):
         cnt = 0
+        chk_counter = 10
+        idx_history = [list(self.poseToCostIndex(self.pose))]
         if len(self.m_line) == 0:
             self.initialize()
         while not self.isRobotInWorldObstacle(self.pose) and not self.isRobotInCostGoal(self.pose):
             self.pose = self.next(self.pose)
             self.poses.append(self.pose)
-            chk_interval = 30
-            if len(self.poses) > chk_interval+1:
-                distance = 0.0
-                for i in range(chk_interval):
-                    distance += np.abs(np.linalg.norm(self.poses[i-chk_interval][0:2] - self.poses[i-chk_interval-1][0:2]))
-                if distance < np.linalg.norm(self.world.grid_step) * 1.0:
+            cnt += 1
+            
+            next_index = self.poseToCostIndex(self.pose)
+            if not np.all(current_index == next_index):
+                current_index = next_index
+                idx_history.append(list(current_index))
+                if idx_history.count(list(current_index)) > chk_counter:
                     break
+        self.time = self.time_interval * cnt
     
     def draw(self, ax, elems):
         self.drawRobot(self.pose, ax, elems)
@@ -707,7 +716,7 @@ class BugFollower(PathFollower):
                 self.drawCostSizeGrid(line, "lime", 0.5, ax)
 
 
-# In[4]:
+# In[5]:
 
 
 if __name__ == "__main__":
