@@ -167,14 +167,15 @@ class GridMapWorld():
         else:
             return False
     
-    def hasObstacle(self, index, gridsize):
-        ran = math.ceil((gridsize-1) / 2)
-        for i in range(-ran, ran+1):
-            for j in range(-ran, ran+1):
-                if self.isObstacle(index + [i, j]):
+    def hasObstacle(self, index, grid_size_ratio):
+        index = np.array(index) // grid_size_ratio
+        index = np.array(index) * grid_size_ratio
+        for i in range(grid_size_ratio):
+            for j in range(grid_size_ratio):
+                if self.isObstacle([index[0] + i, index[1] + j]):
                     return True
         return False
-    
+
     def resetStartAndGoal(self, start_index=None, goal_index=None, gridsize=1, distance=100):
         if np.any(self.start_index != None):
             self.grid_map[self.start_index[0]][self.start_index[1]] = '1'
