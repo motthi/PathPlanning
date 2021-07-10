@@ -89,11 +89,14 @@ class PathFollower(Robot):
     
     def run(self):
         cnt = 0
+        chk_counter = 10
+        chk_interval = 100
+        idx_history = [list(self.poseToCostIndex(self.pose))]
         d_pose = self.world.goal_index - self.world.start_index
         theta = np.arctan2(d_pose[1], d_pose[0])
         self.pose = np.append(self.world.start_index * self.world.grid_step + self.world.grid_step / 2, theta)
-        chk_counter = 10
         while not self.isRobotInCostGoal(self.pose) and not self.isRobotInWorldObstacle(self.pose):
+            current_index = self.poseToCostIndex(self.pose)
             self.pose = self.next(self.pose)
             self.poses.append(self.pose)
             cnt += 1
@@ -103,6 +106,12 @@ class PathFollower(Robot):
                 current_index = next_index
                 idx_history.append(list(current_index))
                 if idx_history.count(list(current_index)) > chk_counter:
+                    break
+            if len(self.poses) > chk_interval+1:
+                distance = 0.0
+                for i in range(chk_interval):
+                    distance += np.abs(np.linalg.norm(self.poses[i-chk_interval][0:2] - self.poses[i-chk_interval-1][0:2]))
+                if distance < np.linalg.norm(self.world.grid_step) * 1.0:
                     break
         self.time = self.time_interval * cnt
     
@@ -465,10 +474,12 @@ class BugFollower(PathFollower):
     def run(self):
         cnt = 0
         chk_counter = 10
+        chk_interval = 100
         idx_history = [list(self.poseToCostIndex(self.pose))]
         if len(self.m_line) == 0:
             self.initialize()
         while not self.isRobotInWorldObstacle(self.pose) and not self.isRobotInCostGoal(self.pose):
+            current_index = self.poseToCostIndex(self.pose)
             self.pose = self.next(self.pose)
             self.poses.append(self.pose)
             cnt += 1
@@ -478,6 +489,12 @@ class BugFollower(PathFollower):
                 current_index = next_index
                 idx_history.append(list(current_index))
                 if idx_history.count(list(current_index)) > chk_counter:
+                    break
+            if len(self.poses) > chk_interval+1:
+                distance = 0.0
+                for i in range(chk_interval):
+                    distance += np.abs(np.linalg.norm(self.poses[i-chk_interval][0:2] - self.poses[i-chk_interval-1][0:2]))
+                if distance < np.linalg.norm(self.world.grid_step) * 1.0:
                     break
         self.time = self.time_interval * cnt
     
