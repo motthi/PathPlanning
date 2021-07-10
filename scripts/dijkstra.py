@@ -57,7 +57,7 @@ class Dijkstra(GridBasePathPlanning):
                 self.drawPath(ax, elems)    #経路の描画
                 self.drawedTakenPath_flag = True
     
-    def plot(self, figsize=(4, 4), save_path=None):
+    def plot(self, figsize=(4, 4), obstacle_expands=False, save_path=None):
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
         ax.set_aspect('equal')
@@ -67,9 +67,12 @@ class Dijkstra(GridBasePathPlanning):
         ax.set_ylabel("Y", fontsize=10)
 
         # Map
-        for index, grid in np.ndenumerate(self.grid_map):
+        for index, grid in np.ndenumerate(self.world.grid_map_real):
             if grid == '0':
                 self.world.drawGrid(index, "black", 1.0, ax)
+            elif grid == '1':
+                if obstacle_expands is True and self.grid_map[index[0]][index[1]] == '0':
+                    self.world.drawGrid(index, "dimgray", 1.0, ax)
             if grid == '2' or self.world.isStart(index):  #Start
                 self.world.drawGrid(index, "orange", 1.0, ax)
             elif grid == '3' or self.world.isGoal(index):  #Goal
@@ -83,7 +86,6 @@ class Dijkstra(GridBasePathPlanning):
 
         if save_path is not None:
             fig.savefig(save_path, bbox_inches='tight', pad_inches=0.1)
-        return fig
     
     def run(self):
         self.currentIndex = self.indexWorldToCost(self.world.start_index)
@@ -224,12 +226,13 @@ if __name__ == "__main__":
 
     map_data = "../csvmap/map2.csv"
 
-    world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, debug=False)
+    world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, obstacle_expand=0, debug=False)
 
     #cost_adj1, cost_adj2 = 15.0, 2.0    #map1
     cost_adj1, cost_adj2 = 10.0, 0.0    #map2
     #cost_adj1, cost_adj2 = 3.2, 2.0    #map3
-    world.append(Dijkstra(world, grid_size_ratio=1, drawTakenPath_flag=True, drawCost_flag=True, cost_adj1=cost_adj1, cost_adj2=cost_adj2))
+    dijkstra = Dijkstra(world, drawTakenPath_flag=True, drawCost_flag=True, cost_adj1=cost_adj1, cost_adj2=cost_adj2)
+    world.append(dijkstra)
 
     world.draw()
     #world.ani.save('dijkstra_map1.gif', writer='pillow', fps=100)    #アニメーション保存

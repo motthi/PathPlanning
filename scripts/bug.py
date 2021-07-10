@@ -52,7 +52,7 @@ class BUG(GridBasePathPlanning):
             if not self.hasGoal(self.currentIndex):
                 self.drawCostSizeGrid(self.currentIndex, "red", 0.5, ax)
     
-    def plot(self, figsize=(4, 4), color="red", save_path=None, drawMLine_flag=False):
+    def plot(self, figsize=(4, 4), color="red", save_path=None, obstacle_expands=False, drawMLine_flag=False):
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
         ax.set_aspect('equal')
@@ -62,9 +62,12 @@ class BUG(GridBasePathPlanning):
         ax.set_ylabel("Y", fontsize=10)
 
         # Map
-        for index, grid in np.ndenumerate(self.world.grid_map):
+        for index, grid in np.ndenumerate(self.world.grid_map_real):
             if grid == '0':
                 self.world.drawGrid(index, "black", 1.0, ax)
+            elif grid == '1':
+                if obstacle_expands is True and self.world.grid_map[index[0]][index[1]] == '0':
+                    self.world.drawGrid(index, "dimgray", 1.0, ax)
             if grid == '2' or self.world.isStart(index):  #Start
                 self.world.drawGrid(index, "orange", 1.0, ax)
             elif grid == '3' or self.world.isGoal(index):  #Goal
@@ -83,7 +86,6 @@ class BUG(GridBasePathPlanning):
 
         if save_path is not None:
             fig.savefig(save_path, bbox_inches='tight', pad_inches=0.1)
-        return fig
     
     def run(self):
         self.initialize()
@@ -224,10 +226,10 @@ if __name__ == "__main__":
     grid_num = np.array([30, 30])
     
     map_data = "./csvmap/map2.csv"
+    world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, obstacle_expand=0, debug=False)
+    bug = BUG(world, grid_size_ratio=1, drawMLine_flag=True)
     
-    world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, debug=False)
-    world.append(BUG(world, grid_size_ratio=1, drawMLine_flag=True))
-    
+    world.append(bug)
     world.draw(figsize=(4, 4))
     #world.ani.save('bug_map.gif', writer='ffmpeg', fps=100)    #アニメーション保存
 

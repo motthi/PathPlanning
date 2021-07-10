@@ -10,11 +10,12 @@ import matplotlib.animation as anm
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
-import math
 import csv
 import tqdm
 import sys
 import random
+import itertools
+import copy
 
 if 'google.colab' in sys.modules or 'ipykernel' in sys.modules:
     from tqdm.notebook import tqdm  # Google Colaboratory or Jupyter Notebook
@@ -24,7 +25,7 @@ else:
 neigbor_grids = np.array([[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]])
 
 
-# In[6]:
+# In[2]:
 
 
 class GridMapWorld():
@@ -37,7 +38,8 @@ class GridMapWorld():
         map_data="map1.csv",
         debug=False,
         is_dynamic=False,
-        time_show="step"
+        time_show="step",
+        obstacle_expand=0
     ):
         self.objects = []
         self.grid_step = np.array(grid_step)
@@ -54,18 +56,26 @@ class GridMapWorld():
         
         with open(self.map_data) as f:
             reader = csv.reader(f)
-            self.grid_map = np.array([row for row in reader]).T
+            self.grid_map_real = np.array([row for row in reader]).T
+        self.grid_map = copy.copy(self.grid_map_real)
         
-        for index, grid in np.ndenumerate(self.grid_map):
+        # 障害物領域の拡張
+        ob_range = list(range(-obstacle_expand, obstacle_expand+1))
+        obstacles_expands = list(itertools.product(ob_range, ob_range))
+        for index, grid in np.ndenumerate(self.grid_map_real):
             if grid == '2':  #Start
                 self.start_index = np.array(index)
             elif grid == '3':  #Goal
                 self.goal_index = np.array(index)
+            elif self.grid_map_real[index[0]][index[1]] == '0':  #Obstacle
+                for ob_expand in obstacles_expands:
+                    if not self.isOutOfBounds([index[0]+ob_expand[0], index[1]+ob_expand[1]]):
+                        self.grid_map[index[0]+ob_expand[0]][index[1]+ob_expand[1]] = '0' 
         
     def append(self,obj):
         self.objects.append(obj)
     
-    def draw(self, figsize=(4, 4)):
+    def draw(self, figsize=(6, 6), obstacle_expands=False):
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
         ax.set_aspect('equal')
@@ -74,15 +84,18 @@ class GridMapWorld():
         ax.set_xlabel("X",fontsize=10)
         ax.set_ylabel("Y",fontsize=10)
         
-        for index, grid in np.ndenumerate(self.grid_map):
-            if(grid == '2' or self.isStart(index)):   #Start
+        for index, grid in np.ndenumerate(self.grid_map_real):
+            if grid == '2' or self.isStart(index):   #Start
                 clr = "orange"
-            elif(grid == '3' or self.isGoal(index)):   #Goal
+            elif grid == '3' or self.isGoal(index):   #Goal
                 clr = "green"
-            elif(grid == '1'):     #Unoccupied
-                continue
-            elif(grid == '0'):   #Obstacles
-                if(self.is_dynamic):
+            elif grid == '1':     #Unoccupied
+                if obstacle_expands is True and self.grid_map[index[0]][index[1]] == '0':
+                    clr = "dimgray"
+                else:
+                    continue
+            elif grid == '0':   #Obstacles
+                if self.is_dynamic:
                     clr = "lightgray"
                 else:
                     clr = "black"
@@ -106,9 +119,9 @@ class GridMapWorld():
     def one_step(self, i, elems, ax):
         while elems: elems.pop().remove()
         
-        if(self.time_show == "time"):
+        if self.time_show == "time":
             time_str = "t = %.2f[s]" % (self.time_interval*i)
-        elif(self.time_show == "step"):
+        elif self.time_show == "step":
             time_str = "step = " + str(i)
         else:
             time_str = ""
@@ -136,33 +149,33 @@ class GridMapWorld():
             alpha=alpha,
             fill=fill
         )
-        if(elems is not None):
+        if elems is not None:
             elems.append(ax.add_patch(r))
         else:
             ax.add_patch(r)
     
     def isObstacle(self, index):
-        if(self.isOutOfBounds(index)):
+        if self.isOutOfBounds(index):
             return True
-        if(self.grid_map[index[0], index[1]] == '0'):
+        if self.grid_map[index[0], index[1]] == '0':
             return True
         else:
             return False
         
     def isOutOfBounds(self, index):
-        if(np.any(index >= self.grid_num) or np.any(index < [0, 0])):
+        if np.any(index >= self.grid_num) or np.any(index < [0, 0]):
             return True
         else:
             return False
     
     def isStart(self, index):
-        if(np.all(index == self.start_index)):
+        if np.all(index == self.start_index):
             return True
         else:
             return False
     
     def isGoal(self, index):
-        if(np.all(index == self.goal_index)):
+        if np.all(index == self.goal_index):
             return True
         else:
             return False
@@ -197,7 +210,7 @@ class GridMapWorld():
         return np.linalg.norm(index1 - index2)
 
 
-# In[9]:
+# In[3]:
 
 
 if __name__ == "__main__":
@@ -209,9 +222,9 @@ if __name__ == "__main__":
 
     map_data = "csvmap/map2.csv"
 
-    world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, debug=False, is_dynamic=False)
-    
-    world.draw()
+    world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, obstacle_expand=0, is_dynamic=False, debug=False)
+
+    world.draw(obstacle_expands=True)
     #world.ani.save('input.gif', writer='pillow', fps=60)    #アニメーション保存
 
 

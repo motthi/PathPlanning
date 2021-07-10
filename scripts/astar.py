@@ -64,7 +64,7 @@ class Astar(Dijkstra):
         return 0.9 * np.linalg.norm(self.indexWorldToCost(self.world.goal_index) - u)
 
 
-# In[3]:
+# In[4]:
 
 
 if __name__ == "__main__":
@@ -75,13 +75,20 @@ if __name__ == "__main__":
     grid_num = np.array([30, 30])
     
     map_data = "../csvmap/map2.csv"
+    world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, obstacle_expand=0, debug=False)
     
     #cost_adj1, cost_adj2 = 35.0, 36.35    #map1
     cost_adj1, cost_adj2 = 14.0, 20.0    #map2
     #cost_adj1, cost_adj2 = 3.7, 27.9    #map3
-    world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, debug=False)
-    world.append(Astar(world, grid_size_ratio=1, drawTakenPath_flag=True, drawCost_flag=True, cost_adj1=cost_adj1, cost_adj2=cost_adj2))
+    astar = Astar(world, drawTakenPath_flag=True, drawCost_flag=True, cost_adj1=cost_adj1, cost_adj2=cost_adj2)
+    world.append(astar)
     
     world.draw()
     #world.ani.save('astar_map1.gif', writer='pillow', fps=100)    #アニメーション保存
+
+
+# In[ ]:
+
+
+
 
