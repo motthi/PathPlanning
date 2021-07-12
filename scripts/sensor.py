@@ -19,7 +19,7 @@ def occupancyToColor(occupancy):
     return "#"+format(int(255*(1-occupancy)), '02x')*3
 
 class IdealSensor():
-    def __init__(self, world, sensing_range=3):
+    def __init__(self, world, sensing_range=3, obstacle_expand=0):
         self.world = world
         self.sensing_range = []
         for i in range(-sensing_range, sensing_range):
@@ -27,20 +27,33 @@ class IdealSensor():
                 if np.sqrt(i**2 + j**2) > sensing_range or (i==0 and j==0):
                     continue
                 self.sensing_range.append(np.array([i, j]))
+        #ob_range = list(range(-obstacle_expand, obstacle_expand+1))
+        #self.obstacles_expands = np.array(np.meshgrid(ob_range, ob_range)).T.reshape(-1, 2)
+        #self.obstacles_expands = np.delete(self.obstacles_expands, np.argmax(np.all([0, 0] == self.obstacles_expands, axis=1)), axis=0)
     
     def sense(self, index):
-        obstacle_grids = []
+        obstacle_grids = [[index, 0]]
         for sensing_grid in self.sensing_range:
             u = index + sensing_grid
             if self.world.isOutOfBounds(u):
-                continue;
-            elif self.world.grid_map[u[0]][u[1]] == '0':
+                continue
+            elif self.world.grid_map_real[u[0]][u[1]] == '0':
                 obstacle_grids.append([u, 1])
+                #for obs_expand in self.obstacles_expands:
+                #    exp_grid = u + obs_expand
+                #    if not self.world.isOutOfBounds(exp_grid):
+                #        if not np.any(np.all(exp_grid == [obs_grid[0] for obs_grid in obstacle_grids], axis=1)):
+                #            obstacle_grids.append([exp_grid, 1])
+                #        else:
+                #            idx = np.argmax(np.all(exp_grid == [obs_grid[0] for obs_grid in obstacle_grids], axis=1))
+                #            obstacle_grids.pop(idx)
+                #            obstacle_grids.append([exp_grid, 1])
             else:
+                #if not np.any(np.all(u == [obs_grid[0] for obs_grid in obstacle_grids], axis=1)):
                 obstacle_grids.append([u, 0])
         return obstacle_grids
     
-    def plot(self, figsize=(4, 4), robot_index=np.array([10, 10]), save_path=None):
+    def plot(self, figsize=(4, 4), robot_index=np.array([10, 10]), obstacle_expands=False, save_path=None):
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
         ax.set_aspect('equal')
@@ -50,7 +63,7 @@ class IdealSensor():
         ax.set_ylabel("Y", fontsize=10)
 
         # Map
-        for index, grid in np.ndenumerate(self.world.grid_map):
+        for index, grid in np.ndenumerate(self.world.grid_map_real):
             if grid == '0':
                 self.world.drawGrid(index, "lightgray", 1.0, ax)
             if grid == '2' or self.world.isStart(index):  #Start
@@ -60,14 +73,18 @@ class IdealSensor():
         
         self.world.drawGrid(robot_index, "red", 1.0, ax)
         for index, occupancy in self.sense(robot_index):
-            if (not self.world.isStart(index)) and (not self.world.isGoal(index)):
-                self.world.drawGrid(index, occupancyToColor(occupancy), 1.0, ax)
+            if occupancy < 0.3:
+                continue
+            if not self.world.isStart(index) and not self.world.isGoal(index):
+                if obstacle_expands is True and self.world.grid_map_real[index[0]][index[1]] == '1':
+                    self.world.drawGrid(index, "dimgray", 1.0, ax)
+                else:
+                    self.world.drawGrid(index, occupancyToColor(occupancy), 1.0, ax)
         
         plt.show()
         
         if(save_path is not None):
             fig.savefig(save_path, bbox_inches='tight', pad_inches=0.1)
-        return fig
 
 
 # In[3]:
@@ -152,9 +169,9 @@ if __name__ == "__main__":
 
     map_data = "./csvmap/map2.csv"
 
-    world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, time_show="time", debug=False)
-    sensor = Sensor(world)
-    sensor.plot(figsize=(4, 4), robot_index=np.array([7, 6]))
+    world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, time_show="time", obstacle_expand=1, debug=False)
+    sensor = IdealSensor(world, sensing_range=5, obstacle_expand=1)
+    sensor.plot(figsize=(4, 4), robot_index=np.array([11, 1]), obstacle_expands=True)
 
 
 # In[ ]:

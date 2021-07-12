@@ -23,7 +23,7 @@ class GridBasePathPlanning():
         self.grid_cost_num = self.world.grid_num / self.grid_size_ratio
         if not self.grid_cost_num[0].is_integer() or not self.grid_cost_num[1].is_integer():
             warnings.warn("World's grid map and DstarLite's grid cost map are incompatible")
-        self.grid_cost_num = self.grid_cost_num.astype('int8')
+        self.grid_cost_num = self.grid_cost_num.astype('int16')
     
     def drawCostSizeGrid(self, index, color, alpha, ax, fill=True, elems=None):
         xy = index * self.world.grid_step * self.grid_size_ratio

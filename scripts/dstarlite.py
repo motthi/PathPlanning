@@ -19,10 +19,13 @@ from matplotlib.animation import PillowWriter    #アニメーション保存用
 
 class DstarLite(GridBasePathPlanning):
     def __init__(
-        self, world, sensor, grid_size_ratio=1,
+        self, world, sensor, grid_size_ratio=1, obstacle_expand=0,
         drawCost_flag=False, drawTakenPath_flag=True, drawPathToTake_flag=True, drawLocalMap_flag=False, drawMetricMap_flag=False, cost_adj=13
     ):
         super().__init__(world, grid_size_ratio)
+        ob_range = list(range(-obstacle_expand, obstacle_expand+1))
+        self.obstacle_expands = np.array(np.meshgrid(ob_range, ob_range)).T.reshape(-1, 2)
+        self.obstacle_expands = np.delete(self.obstacle_expands, np.argmax(np.all([0, 0] == self.obstacle_expands, axis=1)), axis=0)
         
         self.sensor = sensor
         self.local_map = np.full(self.world.grid_map.shape, -1, dtype=float)
@@ -33,6 +36,7 @@ class DstarLite(GridBasePathPlanning):
         self.drawMetricMap_flag = drawMetricMap_flag
         self.drawTakenPath_flag = drawTakenPath_flag
         self.cost_adj = cost_adj
+        self.pathToTake = []
         
         self.pp_algorithm_name = "DstarLite"
         
@@ -62,6 +66,8 @@ class DstarLite(GridBasePathPlanning):
         self.computeShortestPath(self.currentIndex)
     
     def draw(self, ax, elems):
+        if len(self.pathToTake) == 0:
+            self.initialize()
         if self.g(self.currentIndex) == float('inf'):
             raise PathNotFoundError("Path was not found")
             return
@@ -92,7 +98,7 @@ class DstarLite(GridBasePathPlanning):
                 warnings.warn("Dstar-Lite warning : Rover got stuck")
                 break
     
-    def plot(self, figsize=(4, 4), save_path=None):
+    def plot(self, figsize=(4, 4), obstacle_expands=False, save_path=None):
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
         ax.set_aspect('equal')
@@ -102,9 +108,12 @@ class DstarLite(GridBasePathPlanning):
         ax.set_ylabel("Y", fontsize=10)
 
         # Map
-        for index, grid in np.ndenumerate(self.world.grid_map):
+        for index, grid in np.ndenumerate(self.world.grid_map_real):
             if grid == '0':
                 self.world.drawGrid(index, "black", 1.0, ax)
+            elif grid == '1':
+                if obstacle_expands is True and self.world.grid_map[index[0]][index[1]] == '0':
+                    self.world.drawGrid(index, "dimgray", 1.0, ax)
             if grid == '2' or self.world.isStart(index):  #Start
                 self.world.drawGrid(index, "orange", 1.0, ax)
             elif grid == '3' or self.world.isGoal(index):  #Goal
@@ -138,8 +147,9 @@ class DstarLite(GridBasePathPlanning):
         obstacles = self.sensor.sense(self.indexCostToWorld(index))
         self.newObstacles = []
         self.newObstaclesOnCost = []
+        self.newExpandObstacles = []
         
-        # 新たな障害物をリストアップ
+        expanded_obstacles = []
         for u, occupancy in obstacles:
             if self.local_map[u[0]][u[1]] == -1.0:
                 self.local_map[u[0]][u[1]] = occupancy
@@ -151,18 +161,31 @@ class DstarLite(GridBasePathPlanning):
                 self.newObstacles.append(u)
                 if len(self.newObstaclesOnCost) == 0 or not np.any(np.all(u_metric == [obstacle for obstacle in self.newObstaclesOnCost], axis=1)):
                     self.newObstaclesOnCost.append(u_metric)
+                for obstacle_expand in self.obstacle_expands:
+                    obs_exp = u + obstacle_expand
+                    if self.world.isOutOfBounds(obs_exp):
+                        continue
+                    if not self.world.isRealObstacle(obs_exp):
+                        obs_exp_cost = self.indexWorldToCost(obs_exp)
+                        self.newExpandObstacles.append(obs_exp) if len(self.newExpandObstacles)==0 or not np.any(np.all(obs_exp == [obstacle for obstacle in self.newExpandObstacles], axis=1)) else None
+                        if len(expanded_obstacles) == 0 or not np.any(np.all(obs_exp_cost == [obstacle for obstacle in expanded_obstacles], axis=1)):
+                            expanded_obstacles.append(obs_exp_cost)
+        for expanded_obstacle in expanded_obstacles:
+            if not np.any(np.all(expanded_obstacle == [obstacle for obstacle in self.newObstaclesOnCost], axis=1)):
+                self.local_map[expanded_obstacle[0]][expanded_obstacle[1]] = 1.0
+                self.newObstaclesOnCost.append(expanded_obstacle)
         
         # 障害物周囲の辺をリストアップ
         update_vertex_list = []
         for u in self.newObstaclesOnCost:
             for grid in neigbor_grids:
                 v = u + grid
-                update_vertex_list.append([u, v]) if not np.any([np.all(u == ver[0]) and np.all(v == ver[1]) for ver in update_vertex_list]) else None
-                update_vertex_list.append([v, u]) if not np.any([np.all(v == ver[0]) and np.all(u == ver[1]) for ver in update_vertex_list]) else None
+                update_vertex_list.append([u, v])# if not np.any([np.all(u == ver[0]) and np.all(v == ver[1]) for ver in update_vertex_list]) else None
+                update_vertex_list.append([v, u])# if not np.any([np.all(v == ver[0]) and np.all(u == ver[1]) for ver in update_vertex_list]) else None
             for vertex in [[[-1, 0], [0, 1]], [[0, 1], [1, 0]], [[1, 0], [0, -1]], [[0, -1], [-1, 0]]]:
                 w, x = u + np.array(vertex[0]), u + np.array(vertex[1])
-                update_vertex_list.append([w, x]) if not np.any([np.all(w == ver[0]) and np.all(x == ver[1]) for ver in update_vertex_list]) else None
-                update_vertex_list.append([x, w]) if not np.any([np.all(x == ver[0]) and np.all(w == ver[1]) for ver in update_vertex_list]) else None
+                update_vertex_list.append([w, x])# if not np.any([np.all(w == ver[0]) and np.all(x == ver[1]) for ver in update_vertex_list]) else None
+                update_vertex_list.append([x, w])# if not np.any([np.all(x == ver[0]) and np.all(w == ver[1]) for ver in update_vertex_list]) else None
         
         # コストが変わる辺をリストアップ
         updated_vertex = []
@@ -198,7 +221,7 @@ class DstarLite(GridBasePathPlanning):
     
     def computeShortestPath(self, index):
         k_old = [0.0, 0.0]
-        while k_old < self.calculateKey(index) or self.rhs(index) > self.g(index):
+        while k_old[0] < self.calculateKey(index)[0] or k_old[1] < self.calculateKey(index)[1] or self.rhs(index) > self.g(index):
             U_row = [row[1] for row in self.U]
             u_data = min(U_row)
             idx = U_row.index(u_data)
@@ -339,6 +362,9 @@ class DstarLite(GridBasePathPlanning):
         for index in self.newObstacles:
             if not(self.world.isStart(index)) and not(self.world.isGoal(index)):
                 self.world.drawGrid(index, occupancyToColor(self.local_map[index[0]][index[1]]), 1.0, ax, fill=True)
+        for index in self.newExpandObstacles:
+            if not(self.world.isStart(index)) and not(self.world.isGoal(index)):
+                self.world.drawGrid(index, "dimgray", 1.0, ax, fill=True)
     
     def drawTakenPath(self, ax, elems):
         for index in self.takenPath:
@@ -407,20 +433,19 @@ if __name__ == "__main__":
 
     grid_step = np.array([0.1, 0.1])
     grid_num = np.array([30, 30])
+    obs_exp = 0
 
     map_data = "../csvmap/map2.csv"
-
-    world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, time_show="time", debug=False, is_dynamic=True)
+    world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, time_show="time", obstacle_expand=obs_exp, debug=False, is_dynamic=True)
 
     cost_adj = 13   #map_2
     #cost_adj = 16   #map_3
     #cost_adj = 4    #map_large
     sensor = IdealSensor(world, sensing_range=5)
-    pp = DstarLite(world, sensor, grid_size_ratio=1, cost_adj=5, drawCost_flag=False)
-    world.append(pp)
-    
-    pp.initialize()
-    world.draw(figsize=(8, 8))
+    dstarlite= DstarLite(world, sensor, grid_size_ratio=1, obstacle_expand=obs_exp, cost_adj=5, drawCost_flag=False)
+    world.append(dstarlite)
+
+    world.draw(figsize=(4, 4))
     # world.ani.save('dstarlite_map5.gif', writer='pillow', fps=100)    #アニメーション保存
 
 

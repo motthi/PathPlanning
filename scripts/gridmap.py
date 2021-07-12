@@ -61,16 +61,18 @@ class GridMapWorld():
         
         # 障害物領域の拡張
         ob_range = list(range(-obstacle_expand, obstacle_expand+1))
-        obstacles_expands = list(itertools.product(ob_range, ob_range))
+        obstacle_expands = np.array(np.meshgrid(ob_range, ob_range)).T.reshape(-1, 2)
+        obstacle_expands = np.delete(obstacle_expands, np.argmax(np.all([0, 0] == obstacle_expands, axis=1)), axis=0)
         for index, grid in np.ndenumerate(self.grid_map_real):
             if grid == '2':  #Start
                 self.start_index = np.array(index)
             elif grid == '3':  #Goal
                 self.goal_index = np.array(index)
             elif self.grid_map_real[index[0]][index[1]] == '0':  #Obstacle
-                for ob_expand in obstacles_expands:
-                    if not self.isOutOfBounds([index[0]+ob_expand[0], index[1]+ob_expand[1]]):
-                        self.grid_map[index[0]+ob_expand[0]][index[1]+ob_expand[1]] = '0' 
+                for ob_expand in obstacle_expands:
+                    obs = index + ob_expand
+                    if not self.isOutOfBounds(obs):
+                        self.grid_map[obs[0]][obs[1]] = '0'
         
     def append(self,obj):
         self.objects.append(obj)
@@ -161,6 +163,14 @@ class GridMapWorld():
             return True
         else:
             return False
+    
+    def isRealObstacle(self, index):
+        if self.isOutOfBounds(index):
+            return True
+        if self.grid_map_real[index[0], index[1]] == '0':
+            return True
+        else:
+            return False
         
     def isOutOfBounds(self, index):
         if np.any(index >= self.grid_num) or np.any(index < [0, 0]):
@@ -192,8 +202,10 @@ class GridMapWorld():
     def resetStartAndGoal(self, start_index=None, goal_index=None, gridsize=1, distance=100):
         if np.any(self.start_index != None):
             self.grid_map[self.start_index[0]][self.start_index[1]] = '1'
+            self.grid_map_real[self.start_index[0]][self.start_index[1]] = '1'
         if np.any(self.goal_index != None):
             self.grid_map[self.goal_index[0]][self.goal_index[1]] = '1'
+            self.grid_map_real[self.goal_index[0]][self.goal_index[1]] = '1'
         if np.any(start_index == None) or np.any(goal_index == None):
             self.start_index = np.array([random.randint(0, self.grid_num[0] - 1), random.randint(0, self.grid_num[1] - 1)])
             self.goal_index = np.array([random.randint(0, self.grid_num[0] - 1), random.randint(0, self.grid_num[1] - 1)])
@@ -204,7 +216,9 @@ class GridMapWorld():
             self.start_index = start_index
             self.goal_index = goal_index
         self.grid_map[self.start_index[0]][self.start_index[1]] = '2'
+        self.grid_map_real[self.start_index[0]][self.start_index[1]] = '2'
         self.grid_map[self.goal_index[0]][self.goal_index[1]] = '3'
+        self.grid_map_real[self.goal_index[0]][self.goal_index[1]] = '3'
         
     def distance(self, index1, index2):
         return np.linalg.norm(index1 - index2)
@@ -222,7 +236,7 @@ if __name__ == "__main__":
 
     map_data = "csvmap/map2.csv"
 
-    world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, obstacle_expand=0, is_dynamic=False, debug=False)
+    world = GridMapWorld(grid_step, grid_num, time_span, time_interval, map_data, obstacle_expand=1, is_dynamic=False, debug=False)
 
     world.draw(obstacle_expands=True)
     #world.ani.save('input.gif', writer='pillow', fps=60)    #アニメーション保存
